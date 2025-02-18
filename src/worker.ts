@@ -121,14 +121,48 @@ export default {
                 return Response.json({ error: 'Missing parameters' }, { status: 400 });
             }
 
-            // Rediriger vers Telegram avec un paramètre simplifié
+            // Récupérer le username depuis le token
+            const response = await fetch('https://api.twitter.com/2/oauth2/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Basic ${btoa(`${env.TWITTER_CLIENT_ID}:${env.TWITTER_CLIENT_SECRET}`)}`
+                },
+                body: new URLSearchParams({
+                    'grant_type': 'authorization_code',
+                    'code': code,
+                    'redirect_uri': env.TWITTER_CALLBACK_URL,
+                    'code_verifier': 'challenge'
+                })
+            });
+
+            if (!response.ok) {
+                return new Response('Error getting token', { status: 500 });
+            }
+
+            const data = await response.json();
+            
+            // Récupérer les infos utilisateur
+            const userResponse = await fetch('https://api.twitter.com/2/users/me', {
+                headers: {
+                    'Authorization': `Bearer ${data.access_token}`
+                }
+            });
+
+            if (!userResponse.ok) {
+                return new Response('Error getting user info', { status: 500 });
+            }
+
+            const userData = await userResponse.json();
+            const username = userData.data.username;
+
+            // Rediriger vers Telegram avec le username
             const botUsername = 'typescriptewanbot';
-            const startParam = `twitter_success`;  // Simplifié pour test
+            const startParam = `twitter_success_${username}`;
             const redirectUrl = `https://t.me/${botUsername}?start=${startParam}`;
             
             console.log('Redirecting to:', redirectUrl);
             
-            // Page de redirection avec plus de feedback
             const html = `
                 <!DOCTYPE html>
                 <html>
@@ -138,7 +172,7 @@ export default {
                 </head>
                 <body>
                     <h1>Authentication successful!</h1>
-                    <p>Connecting your Twitter account... You will be redirected to Telegram in a moment.</p>
+                    <p>Welcome @${username}! Redirecting to Telegram...</p>
                     <p>If you are not redirected, <a href="${redirectUrl}">click here</a>.</p>
                     <script>
                         setTimeout(function() {
@@ -194,14 +228,15 @@ export default {
             const userName = ctx.from?.first_name || "there";
             
             // Si c'est un callback Twitter
-            if (ctx.message?.text?.includes('twitter_success')) {
+            if (ctx.message?.text?.includes('twitter_success_')) {
                 console.log('Processing Twitter success');
                 try {
+                    const username = ctx.message.text.split('twitter_success_')[1];
                     ctx.session.answers.twitterConnected = true;
-                    ctx.session.answers.twitterUsername = "user"; // Pour test
+                    ctx.session.answers.twitterUsername = username;
                     ctx.session.answers.currentQuestion = 0;
 
-                    await ctx.reply(`Twitter account connected successfully! ✅\n\nLet's start with some questions about your project.`);
+                    await ctx.reply(`Welcome @${username}! 👋\n\nLet's start with some questions about your project.`);
                     await askNextQuestion(ctx);
                     return;
                 } catch (error) {
