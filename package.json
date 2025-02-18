@@ -5,18 +5,23 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "start": "node dist/bot.js",
-    "dev": "ts-node src/bot.ts"
+    "start": "ts-node src/server.ts",
+    "dev": "ts-node src/bot.ts",
+    "server": "ts-node src/server.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@grammyjs/storage-file": "^2.4.2",
     "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "grammy": "^1.35.0",
+    "twitter-api-v2": "^1.20.1",
     "typescript": "^5.7.3"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "ts-node": "^10.9.2"
   },
   "repository": {
