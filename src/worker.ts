@@ -163,29 +163,7 @@ export default {
             
             console.log('Redirecting to:', redirectUrl);
             
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Redirecting to Telegram...</title>
-                    <meta http-equiv="refresh" content="1;url=${redirectUrl}">
-                </head>
-                <body>
-                    <h1>Authentication successful!</h1>
-                    <p>Welcome @${username}! Redirecting to Telegram...</p>
-                    <p>If you are not redirected, <a href="${redirectUrl}">click here</a>.</p>
-                    <script>
-                        setTimeout(function() {
-                            window.location.href = "${redirectUrl}";
-                        }, 1000);
-                    </script>
-                </body>
-                </html>
-            `;
-
-            return new Response(html, {
-                headers: { 'Content-Type': 'text/html' },
-            });
+            return Response.redirect(redirectUrl, 302);
         }
 
         const bot = new Bot<MyContext>(env.BOT_TOKEN);
