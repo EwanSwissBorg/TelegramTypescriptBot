@@ -2,6 +2,7 @@ import { Bot, Context, session, SessionFlavor, InlineKeyboard } from "grammy";
 import { getTwitterAuthLink, validateTwitterAuth } from './twitter-auth';
 import dotenv from 'dotenv';
 import { FileAdapter } from "@grammyjs/storage-file";
+import { ProjectDatabase } from './db/database';
 
 // Charger les variables d'environnement
 dotenv.config();
@@ -9,6 +10,7 @@ dotenv.config();
 // Interface pour stocker les réponses
 interface UserAnswers {
     twitterConnected?: boolean;
+    twitterUsername?: string;
     projectName?: string;
     description?: string;
     projectPicture?: string;
@@ -75,9 +77,36 @@ bot.use(session({
     })
 }));
 
+// Initialiser la base de données
+const db = new ProjectDatabase('projects.db');
+
 // Fonction pour afficher le résumé
 async function showSummary(ctx: MyContext) {
     const answers = ctx.session.answers;
+    
+    // Sauvegarder dans la base de données
+    try {
+        await db.createProject({
+            userId: ctx.from?.id.toString() || '',
+            twitterUsername: answers.twitterUsername || '',
+            projectName: answers.projectName || '',
+            description: answers.description || '',
+            projectPicture: answers.projectPicture || '',
+            websiteLink: answers.websiteLink || '',
+            communityLink: answers.communityLink || '',
+            xLink: answers.xLink || '',
+            chain: answers.chain || '',
+            sector: answers.sector || '',
+            tgeDate: answers.tgeDate || '',
+            fdv: answers.fdv || '',
+            ticker: answers.ticker || '',
+            tokenPicture: answers.tokenPicture || '',
+            dataRoom: answers.dataRoom || ''
+        });
+    } catch (error) {
+        console.error('Error saving to database:', error);
+    }
+
     const summary = `
 📋 Project Summary:
 
@@ -129,6 +158,7 @@ bot.command("start", async (ctx) => {
             console.log('Twitter username:', username);
             
             ctx.session.answers.twitterConnected = true;
+            ctx.session.answers.twitterUsername = username;
             await ctx.reply(`Welcome @${username}! 👋\n\nI'm the BorgPad Curator Bot. I'll help you to create your commitment page on BorgPad.`);
             await askNextQuestion(ctx);
             return;
