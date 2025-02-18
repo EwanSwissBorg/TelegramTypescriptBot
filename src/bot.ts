@@ -1,11 +1,14 @@
-import { Bot, Context, session, SessionFlavor } from "grammy";
+import { Bot, Context, session, SessionFlavor, InlineKeyboard } from "grammy";
+import { getTwitterAuthLink, validateTwitterAuth } from './twitter-auth';
 import dotenv from 'dotenv';
+import { FileAdapter } from "@grammyjs/storage-file";
 
 // Charger les variables d'environnement
 dotenv.config();
 
 // Interface pour stocker les réponses
 interface UserAnswers {
+    twitterConnected?: boolean;
     projectName?: string;
     description?: string;
     projectPicture?: string;
@@ -25,6 +28,10 @@ interface UserAnswers {
 // Type pour la session
 interface SessionData {
     answers: UserAnswers;
+    twitterAuth?: {
+        codeVerifier: string;
+        state: string;
+    };
 }
 
 // Type pour le contexte avec session
@@ -56,12 +63,15 @@ if (!token) {
 // Créer une instance du bot
 const bot = new Bot<MyContext>(token);
 
-// Configurer la session
+// Configurer la session avec stockage fichier
 bot.use(session({
     initial: (): SessionData => ({
         answers: {
             currentQuestion: 0
         }
+    }),
+    storage: new FileAdapter({
+        dirName: "sessions"
     })
 }));
 
@@ -93,6 +103,13 @@ async function showSummary(ctx: MyContext) {
 // Fonction pour poser la prochaine question
 async function askNextQuestion(ctx: MyContext) {
     const currentQuestion = ctx.session.answers.currentQuestion;
+    
+    // Vérifier si l'utilisateur est connecté à Twitter avant de commencer les questions
+    if (!ctx.session.answers.twitterConnected) {
+        await ctx.reply("Please connect your X account first! 🐦");
+        return;
+    }
+
     if (currentQuestion < questions.length) {
         await ctx.reply(questions[currentQuestion]);
     } else {
@@ -100,12 +117,50 @@ async function askNextQuestion(ctx: MyContext) {
     }
 }
 
-// Gérer la commande /start
+// Gérer le callback Twitter
 bot.command("start", async (ctx) => {
+    const fullCommand = ctx.message?.text || '';
+    console.log('Full command received:', fullCommand);
+    
+    // Vérifier si c'est un callback Twitter réussi
+    if (fullCommand.includes('twitter_success_')) {
+        try {
+            const username = fullCommand.split('twitter_success_')[1];
+            console.log('Twitter username:', username);
+            
+            ctx.session.answers.twitterConnected = true;
+            await ctx.reply(`Welcome @${username}! 👋\n\nI'm the BorgPad Curator Bot. I'll help you to create your commitment page on BorgPad.`);
+            await askNextQuestion(ctx);
+            return;
+        } catch (error) {
+            console.error('Error handling Twitter success:', error);
+            await ctx.reply("An error occurred. Please try again.");
+            return;
+        }
+    }
+
+    // Si ce n'est pas un callback Twitter, c'est un démarrage normal du bot
     const userName = ctx.from?.first_name || "there";
-    await ctx.reply(`Welcome ${userName}! 👋\n\nI'm the BorgPad Curator Bot. I'll help you to create your commitment page on BorgPad.`);
-    ctx.session.answers = { currentQuestion: 0 };
-    await askNextQuestion(ctx);
+    
+    try {
+        const { url, codeVerifier, state } = await getTwitterAuthLink(ctx.from?.id.toString() || '');
+        
+        // Stocker le code verifier dans le serveur
+        const storeUrl = `${process.env.TWITTER_CALLBACK_URL?.replace('/twitter/callback', '')}/store-verifier?state=${state}&codeVerifier=${codeVerifier}`;
+        await fetch(storeUrl);
+
+        const keyboard = new InlineKeyboard()
+            .url("Connect with X 🐦", url)
+            .row();
+
+        await ctx.reply(
+            `Welcome ${userName}! 👋\n\nI'm the BorgPad Curator Bot. I'll help you to create your commitment page on BorgPad.\n\nFirst, please connect your X account:`,
+            { reply_markup: keyboard }
+        );
+    } catch (error) {
+        console.error('Error generating Twitter auth link:', error);
+        await ctx.reply("Sorry, there was an error setting up Twitter authentication. Please try again later.");
+    }
 });
 
 // Gérer les messages texte et photos
