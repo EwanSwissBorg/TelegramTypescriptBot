@@ -6,5 +6,9 @@ compatibility_flags = ["nodejs_compat"]
 [observability.logs]
 enabled = true
 
+[[kv_namespaces]]
+binding = "SESSION_STORE"
+id = "f2481cf9dd554236a59ce0416b7578d9"  # Vous obtiendrez cet ID après la création
+
 
 
