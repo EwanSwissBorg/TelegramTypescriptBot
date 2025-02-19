@@ -237,7 +237,7 @@ export default {
             const username = userData.data.username;
 
             // Rediriger vers Telegram avec le username
-            const botUsername = 'typescriptewanbot';
+            const botUsername = 'BorgPadInternApplicationBot';
             const startParam = `twitter_success_${username}`;
             const redirectUrl = `https://t.me/${botUsername}?start=${startParam}`;
             
