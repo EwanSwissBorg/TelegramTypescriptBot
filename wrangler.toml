@@ -10,5 +10,10 @@ enabled = true
 binding = "SESSION_STORE"
 id = "f2481cf9dd554236a59ce0416b7578d9"  # Vous obtiendrez cet ID après la création
 
+[[d1_databases]]
+binding = "DB"
+database_name = "borgpad-bot-db"
+database_id = "42aab319-025f-402f-b053-f18e0d2eac0b"
+
 
 
