@@ -47,8 +47,8 @@ const questions = [
     "6/13 - Your X link 🐦",
     "7/13 - On which chain you want to deploy? ⛓️",
     "8/13 - What is your sector? 🎯 (Depin / SocialFi / DeFi etc.)",
-    "9/13 - When do you plan to do your TGE? 📅",
-    "10/13 - Which FDV do you want ? 💰",
+    "9/13 - When do you plan to do your TGE? (MM/YY) 📅",
+    "10/13 - Which FDV do you want? Just write the number: 💰\n- 1 : 1m to 5m FDV\n- 2 : 5m to 10m FDV\n- 3 : 10m to 25m FDV\n- 4 : 25m to 50m FDV",
     "11/13 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
     "12/13 - Send your token picture in jpg or png format 🖼️ (WITH COMPRESSION - so please ensure a high quality image first)",
     "13/13 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
@@ -237,7 +237,7 @@ export default {
             const username = userData.data.username;
 
             // Rediriger vers Telegram avec le username
-            const botUsername = 'typescriptewanbot';
+            const botUsername = 'BorgPadInternApplicationBot';
             const startParam = `twitter_success_${username}`;
             const redirectUrl = `https://t.me/${botUsername}?start=${startParam}`;
             

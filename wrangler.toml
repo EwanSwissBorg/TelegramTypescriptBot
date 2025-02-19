@@ -1,6 +1,7 @@
 name = "borgpad-bot"
 main = "src/worker.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-02-19"
+account_id = "2b7d0e931a9c1557e6ca9927c9078579"
 compatibility_flags = ["nodejs_compat"] 
 # wrangler.toml (wrangler v3.88.0^)
 [observability.logs]
@@ -8,12 +9,12 @@ enabled = true
 
 [[kv_namespaces]]
 binding = "SESSION_STORE"
-id = "f2481cf9dd554236a59ce0416b7578d9"  # Vous obtiendrez cet ID après la création
+id = "3432b5d7903b4ff9a74dddc009a1b9df"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "borgpad-bot-db"
-database_id = "42aab319-025f-402f-b053-f18e0d2eac0b"
+database_id = "d0199e79-f98d-46a0-a3db-ff6041ce4de8"
 
 
 
