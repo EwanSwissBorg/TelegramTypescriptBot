@@ -248,7 +248,7 @@ export default {
 
         const bot = new Bot<MyContext>(env.BOT_TOKEN);
 
-        // Configuration de la session simplifiée
+        // Configuration de la session avec storage
         bot.use(session({
             initial: () => ({
                 answers: {
@@ -289,6 +289,30 @@ export default {
             if (ctx.message?.text?.includes('twitter_success_')) {
                 console.log('Processing Twitter success');
                 try {
+                    // Vérifiez si la session existe
+                    if (!ctx.session) {
+                        ctx.session = {
+                            answers: {
+                                currentQuestion: 0,
+                                twitterConnected: false,
+                                twitterUsername: '',
+                                projectName: '',
+                                description: '',
+                                projectPicture: '',
+                                websiteLink: '',
+                                communityLink: '',
+                                xLink: '',
+                                chain: '',
+                                sector: '',
+                                tgeDate: '',
+                                fdv: '',
+                                ticker: '',
+                                tokenPicture: '',
+                                dataRoom: ''
+                            }
+                        };
+                    }
+                    
                     const username = ctx.message.text.split('twitter_success_')[1];
                     ctx.session.answers.twitterConnected = true;
                     ctx.session.answers.twitterUsername = username;
