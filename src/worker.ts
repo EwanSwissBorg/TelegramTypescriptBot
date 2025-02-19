@@ -1,6 +1,6 @@
 import { Bot, webhookCallback, Context, session, SessionFlavor, InlineKeyboard } from "grammy";
 import { FileAdapter } from "@grammyjs/storage-file";
-import { ExecutionContext, KVNamespace } from "@cloudflare/workers-types";
+import { D1Database, ExecutionContext, KVNamespace } from "@cloudflare/workers-types";
 
 // Interfaces
 interface Env {
@@ -9,6 +9,7 @@ interface Env {
     TWITTER_CLIENT_SECRET: string;
     TWITTER_CALLBACK_URL: string;
     SESSION_STORE: KVNamespace;
+    DB: D1Database;
 }
 
 interface UserAnswers {
@@ -71,21 +72,86 @@ class CloudflareStorage {
     }
 }
 
+// Migration SQL pour créer la table
+const CREATE_TABLE = `
+CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId TEXT,
+    twitterUsername TEXT,
+    projectName TEXT,
+    description TEXT,
+    projectPicture TEXT,
+    websiteLink TEXT,
+    communityLink TEXT,
+    xLink TEXT,
+    chain TEXT,
+    sector TEXT,
+    tgeDate TEXT,
+    fdv TEXT,
+    ticker TEXT,
+    tokenPicture TEXT,
+    dataRoom TEXT,
+    createdAt TEXT
+)`;
+
 // Fonction pour poser la question suivante
-async function askNextQuestion(ctx: MyContext) {
+async function askNextQuestion(ctx: MyContext, env: Env) {
     const currentQuestion = ctx.session.answers.currentQuestion;
     
     if (currentQuestion < questions.length) {
         await ctx.reply(questions[currentQuestion]);
     } else {
-        await showSummary(ctx);
+        await showSummary(ctx, env);
     }
 }
 
 // Fonction pour afficher le résumé
-async function showSummary(ctx: MyContext) {
-    const answers = ctx.session.answers;
-    const summary = `
+async function showSummary(ctx: MyContext, env: Env) {
+    try {
+        const answers = ctx.session.answers;
+        const userId = ctx.from?.id.toString();
+        console.log('Saving data for user:', userId);
+        console.log('Answers:', JSON.stringify(answers, null, 2));
+
+        // Vérifier si userId existe
+        if (!userId) {
+            throw new Error('User ID is undefined');
+        }
+
+        // Vérifier si les champs requis sont présents
+        if (!answers.twitterUsername) {
+            throw new Error('Twitter username is required');
+        }
+
+        // Sauvegarder dans D1 avec gestion des nulls
+        const result = await env.DB.prepare(`
+            INSERT INTO projects (
+                userId, twitterUsername, projectName, description, 
+                projectPicture, websiteLink, communityLink, xLink,
+                chain, sector, tgeDate, fdv, ticker, tokenPicture,
+                dataRoom, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(
+            userId,
+            answers.twitterUsername || '',
+            answers.projectName || '',
+            answers.description || '',
+            answers.projectPicture || '',
+            answers.websiteLink || '',
+            answers.communityLink || '',
+            answers.xLink || '',
+            answers.chain || '',
+            answers.sector || '',
+            answers.tgeDate || '',
+            answers.fdv || '',
+            answers.ticker || '',
+            answers.tokenPicture || '',
+            answers.dataRoom || ''
+        ).run();
+
+        console.log('DB insert result:', result);
+
+        const summary = `
 📋 Project Summary:
 
 🏷️ Project Name: ${answers.projectName}
@@ -104,11 +170,19 @@ async function showSummary(ctx: MyContext) {
 
 🎉 Thank you for providing all the information!
 `;
-    await ctx.reply(summary);
+        await ctx.reply(summary);
+    } catch (error) {
+        console.error('Detailed error:', error);
+        console.error('Error stack:', (error as Error).stack);
+        await ctx.reply("Database error: " + (error as Error).message);
+    }
 }
 
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+        // Créer la table si elle n'existe pas
+        await env.DB.prepare(CREATE_TABLE).run();
+
         // Gérer le callback Twitter
         if (request.url.includes('/twitter/callback')) {
             console.log('Received Twitter callback');
@@ -215,7 +289,7 @@ export default {
                     ctx.session.answers.currentQuestion = 0;
 
                     await ctx.reply(`Welcome @${username}! 👋\n\nLet's start with some questions about your project.`);
-                    await askNextQuestion(ctx);
+                    await askNextQuestion(ctx, env);
                     return;
                 } catch (error) {
                     console.error('Error in Twitter callback:', error);
@@ -333,7 +407,7 @@ export default {
                 if (shouldMoveToNextQuestion) {
                     answers.currentQuestion++;
                     console.log('Moving to question:', answers.currentQuestion);
-                    await askNextQuestion(ctx);
+                    await askNextQuestion(ctx, env);
                 }
             } catch (error) {
                 console.error('Error processing message:', error);
