@@ -216,6 +216,8 @@ export default {
 
             const data = await response.json();
             
+            console.log('Access Token:', data.access_token);
+            
             // Récupérer les infos utilisateur
             const userResponse = await fetch('https://api.twitter.com/2/users/me', {
                 headers: {
@@ -223,11 +225,15 @@ export default {
                 }
             });
 
-            if (!userResponse.ok) {
-                return new Response('Error getting user info', { status: 500 });
+            const responseBody = await userResponse.text(); // Get the response as text
+            console.log('Response Body:', responseBody); // Log the raw response
+
+            if (responseBody.trim() === '') {
+                console.error('Received empty response from Twitter API');
+                return new Response('Error getting user info: Empty response', { status: 500 });
             }
 
-            const userData = await userResponse.json();
+            const userData = JSON.parse(responseBody); // Now parse the response body
             const username = userData.data.username;
 
             // Rediriger vers Telegram avec le username
