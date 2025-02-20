@@ -169,6 +169,8 @@ async function showSummary(ctx: MyContext, env: Env) {
 📚 Data Room: ${answers.dataRoom}
 
 🎉 Thank you for providing all the information!
+
+Book a call : https://calendly.com/mark-borgpad/30min to validate all this together and move to the next step !
 `;
         await ctx.reply(summary);
     } catch (error) {
