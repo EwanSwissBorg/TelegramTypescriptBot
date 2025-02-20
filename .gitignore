@@ -1,4 +1,6 @@
 .env
 node_modules
 wrangler.toml
+wrangler_production.toml
+wrangler_staging.toml
 .wrangler
