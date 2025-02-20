@@ -1,6 +1,7 @@
 import { Bot, webhookCallback, Context, session, SessionFlavor, InlineKeyboard } from "grammy";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { D1Database, ExecutionContext, KVNamespace } from "@cloudflare/workers-types";
+import { R2Bucket } from "@cloudflare/workers-types";
 
 // Interfaces
 interface Env {
@@ -10,6 +11,8 @@ interface Env {
     TWITTER_CALLBACK_URL: string;
     SESSION_STORE: KVNamespace;
     DB: D1Database;
+    BUCKET: R2Bucket;
+    BUCKET_URL: string;
 }
 
 interface UserAnswers {
@@ -177,6 +180,35 @@ Book a call : https://calendly.com/mark-borgpad/30min to validate all this toget
         console.error('Detailed error:', error);
         console.error('Error stack:', (error as Error).stack);
         await ctx.reply("Database error: " + (error as Error).message);
+    }
+}
+
+// Fonction pour sauvegarder l'image dans R2
+async function saveImageToR2(imageUrl: string, projectName: string, isToken: boolean, env: Env): Promise<string> {
+    try {
+        // Nettoyer le nom du projet pour le chemin
+        const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        
+        // Construire le chemin du fichier
+        const fileName = isToken ? `${cleanProjectName}_token.png` : `${cleanProjectName}_logo.png`;
+        const filePath = `images/${cleanProjectName}/${fileName}`;
+
+        // Télécharger l'image depuis Telegram
+        const response = await fetch(imageUrl);
+        const imageBuffer = await response.arrayBuffer();
+
+        // Sauvegarder dans R2
+        await env.BUCKET.put(filePath, imageBuffer, {
+            httpMetadata: {
+                contentType: 'image/png'
+            }
+        });
+
+        // Retourner l'URL complète avec le domaine personnalisé
+        return `https://${env.BUCKET_URL}/${filePath}`;
+    } catch (error) {
+        console.error('Error saving image to R2:', error);
+        throw error;
     }
 }
 
@@ -407,10 +439,18 @@ export default {
 
                     const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
                     
+                    // Sauvegarder l'image dans R2
+                    const r2Url = await saveImageToR2(
+                        fileUrl,
+                        ctx.session.answers.projectName || 'unknown',
+                        currentQuestion === 11,
+                        env
+                    );
+                    
                     if (currentQuestion === 2) {
-                        answers.projectPicture = fileUrl;
+                        answers.projectPicture = r2Url;
                     } else {
-                        answers.tokenPicture = fileUrl;
+                        answers.tokenPicture = r2Url;
                     }
                 } else if (ctx.message.text) {
                     switch (currentQuestion) {
