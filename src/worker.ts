@@ -48,10 +48,10 @@ const questions = [
     "4/13 - Your website Link 🌐",
     "5/13 - Your telegram OR discord link (your main channel to communicate your community) 💬",
     "6/13 - Your X link 🐦",
-    "7/13 - On which chain you want to deploy? ⛓️",
+    "7/13 - Select the chain you want to deploy on ⛓️",
     "8/13 - What is your sector? 🎯 (Depin / SocialFi / DeFi etc.)",
-    "9/13 - When do you plan to do your TGE? (MM/YY) 📅",
-    "10/13 - Which FDV do you want? Just write the number: 💰\n- 1 : 1m to 5m FDV\n- 2 : 5m to 10m FDV\n- 3 : 10m to 25m FDV\n- 4 : 25m to 50m FDV",
+    "9/13 - When do you plan to do your TGE? 📅",
+    "10/13 - Select your FDV range 💰",
     "11/13 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
     "12/13 - Send your token picture in jpg or png format 🖼️ (WITH COMPRESSION - so please ensure a high quality image first)",
     "13/13 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
@@ -122,7 +122,39 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
     const currentQuestion = ctx.session.answers.currentQuestion;
     
     if (currentQuestion < questions.length) {
-        await ctx.reply(questions[currentQuestion]);
+        // Créer les boutons pour les questions spécifiques
+        if (currentQuestion === 6) { // Chain question
+            const keyboard = new InlineKeyboard()
+                .text("Solana 🟪", "chain_solana")
+                .text("Avalanche 🔺", "chain_avalanche")
+                .row()
+                .text("Abstract 🟩", "chain_abstract")
+                .text("Base 🟦", "chain_base");
+            
+            await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
+        }
+        else if (currentQuestion === 8) { // TGE date
+            const keyboard = new InlineKeyboard()
+                .text("1-2 weeks", "tge_1-2weeks")
+                .text("1-2 months", "tge_1-2months")
+                .row()
+                .text("2+ months", "tge_2plus");
+            
+            await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
+        }
+        else if (currentQuestion === 9) { // FDV
+            const keyboard = new InlineKeyboard()
+                .text("1M-5M", "fdv_1-5m")
+                .text("5M-10M", "fdv_5-10m")
+                .row()
+                .text("10M-25M", "fdv_10-25m")
+                .text("25M-50M", "fdv_25-50m");
+            
+            await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
+        }
+        else {
+            await ctx.reply(questions[currentQuestion]);
+        }
     } else {
         await showSummary(ctx, env);
     }
@@ -582,6 +614,33 @@ export default {
 
             return `https://twitter.com/i/oauth2/authorize?${params.toString()}`;
         }
+
+        // Ajouter le gestionnaire de boutons
+        bot.on("callback_query", async (ctx) => {
+            const data = ctx.callbackQuery.data;
+            const answers = ctx.session.answers;
+
+            // Gérer les différents boutons
+            if (data?.startsWith("chain_")) {
+                answers.chain = data.replace("chain_", "");
+                await ctx.reply(`Chain selected: ${answers.chain} ✅`);
+            }
+            else if (data?.startsWith("tge_")) {
+                answers.tgeDate = data.replace("tge_", "");
+                await ctx.reply(`TGE date selected: ${answers.tgeDate} ✅`);
+            }
+            else if (data?.startsWith("fdv_")) {
+                answers.fdv = data.replace("fdv_", "");
+                await ctx.reply(`FDV selected: ${answers.fdv} ✅`);
+            }
+
+            // Confirmer la sélection
+            // await ctx.answerCallbackQuery({ text: "Selection saved! ✅" });
+            
+            // Passer à la question suivante
+            answers.currentQuestion++;
+            await askNextQuestion(ctx, env);
+        });
 
         try {
             await webhookCallback(bot, "cloudflare")({
