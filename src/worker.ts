@@ -132,7 +132,9 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
                 .text("Avalanche 🔺", "chain_avalanche")
                 .row()
                 .text("Abstract 🟩", "chain_abstract")
-                .text("Base 🟦", "chain_base");
+                .text("Base 🟦", "chain_base")
+                .row()
+                .text("Sonic 🟡", "chain_sonic"); // Added Sonic chain
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
