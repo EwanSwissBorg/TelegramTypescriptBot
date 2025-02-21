@@ -62,16 +62,36 @@ class CloudflareStorage {
     constructor(private namespace: KVNamespace) {}
 
     async read(key: string) {
-        const value = await this.namespace.get(key);
-        return value ? JSON.parse(value) : null;
+        try {
+            console.log('Reading session for key:', key);
+            const value = await this.namespace.get(key);
+            console.log('Read value from KV:', value);
+            return value ? JSON.parse(value) : null;
+        } catch (error) {
+            console.error('Error reading from KV:', error);
+            return null;
+        }
     }
 
     async write(key: string, value: any) {
-        await this.namespace.put(key, JSON.stringify(value));
+        try {
+            console.log('Writing session for key:', key);
+            console.log('Writing value:', JSON.stringify(value));
+            await this.namespace.put(key, JSON.stringify(value));
+            // Vérification immédiate
+            const written = await this.read(key);
+            console.log('Verification after write:', written);
+        } catch (error) {
+            console.error('Error writing to KV:', error);
+        }
     }
 
     async delete(key: string) {
-        await this.namespace.delete(key);
+        try {
+            await this.namespace.delete(key);
+        } catch (error) {
+            console.error('Error deleting from KV:', error);
+        }
     }
 }
 
@@ -282,8 +302,59 @@ export default {
 
         const bot = new Bot<MyContext>(env.BOT_TOKEN);
 
-        // Configuration de la session avec storage
-        bot.use(session({
+        // Middleware de debug et initialisation de session
+        bot.use(async (ctx, next) => {
+            try {
+                // Lire d'abord la session existante
+                if (ctx.from?.id) {
+                    const storage = new CloudflareStorage(env.SESSION_STORE);
+                    const existingSession = await storage.read(ctx.from.id.toString());
+                    
+                    if (existingSession) {
+                        ctx.session = existingSession;
+                        console.log('Loaded existing session:', existingSession);
+                    } else {
+                        // Initialiser une nouvelle session seulement si aucune n'existe
+                        console.log('No existing session found, creating new one');
+                        ctx.session = {
+                            answers: {
+                                currentQuestion: 0,
+                                twitterConnected: false,
+                                twitterUsername: '',
+                                projectName: '',
+                                description: '',
+                                projectPicture: '',
+                                websiteLink: '',
+                                communityLink: '',
+                                xLink: '',
+                                chain: '',
+                                sector: '',
+                                tgeDate: '',
+                                fdv: '',
+                                ticker: '',
+                                tokenPicture: '',
+                                dataRoom: ''
+                            }
+                        };
+                        await storage.write(ctx.from.id.toString(), ctx.session);
+                    }
+                }
+
+                await next();
+                
+                // Sauvegarder les modifications de session
+                if (ctx.from?.id && ctx.session) {
+                    const storage = new CloudflareStorage(env.SESSION_STORE);
+                    await storage.write(ctx.from.id.toString(), ctx.session);
+                }
+            } catch (error) {
+                console.error('Session middleware error:', error);
+                throw error;
+            }
+        });
+
+        // Configuration de la session (après le middleware)
+        bot.use(session<SessionData, MyContext>({
             initial: () => ({
                 answers: {
                     currentQuestion: 0,
@@ -304,15 +375,9 @@ export default {
                     dataRoom: ''
                 }
             }),
-            storage: new CloudflareStorage(env.SESSION_STORE)
+            storage: new CloudflareStorage(env.SESSION_STORE),
+            getSessionKey: (ctx) => ctx.from?.id?.toString()
         }));
-
-        // Middleware de debug
-        bot.use(async (ctx, next) => {
-            console.log('Session before:', ctx.session);
-            await next();
-            console.log('Session after:', ctx.session);
-        });
 
         // Commande /start
         bot.command("start", async (ctx) => {
@@ -323,7 +388,9 @@ export default {
             if (ctx.message?.text?.includes('twitter_success_')) {
                 console.log('Processing Twitter success');
                 try {
-                    // Vérifiez si la session existe
+                    const username = ctx.message.text.split('twitter_success_')[1];
+                    
+                    // Forcer l'initialisation de la session si nécessaire
                     if (!ctx.session) {
                         ctx.session = {
                             answers: {
@@ -346,20 +413,24 @@ export default {
                             }
                         };
                     }
-                    
-                    const username = ctx.message.text.split('twitter_success_')[1];
+
+                    // Mettre à jour l'état de connexion Twitter
                     ctx.session.answers.twitterConnected = true;
                     ctx.session.answers.twitterUsername = username;
-                    ctx.session.answers.currentQuestion = 0;
+
+                    // Forcer la sauvegarde immédiate de la session
+                    if (ctx.from?.id) {
+                        const storage = new CloudflareStorage(env.SESSION_STORE);
+                        await storage.write(ctx.from.id.toString(), ctx.session);
+                    }
 
                     await ctx.reply(`Welcome @${username}! 👋\n\nLet's start with some questions about your project.`);
                     await askNextQuestion(ctx, env);
-                    return;
                 } catch (error) {
                     console.error('Error in Twitter callback:', error);
                     await ctx.reply("An error occurred while connecting your Twitter account. Please try again.");
-                    return;
                 }
+                return;
             }
 
             // Générer le lien d'authentification Twitter
@@ -396,9 +467,18 @@ export default {
 
         // Gestionnaire de messages
         bot.on(["message:text", "message:photo"], async (ctx) => {
+            console.log('Session state:', {
+                exists: !!ctx.session,
+                twitterConnected: ctx.session?.answers?.twitterConnected,
+                username: ctx.session?.answers?.twitterUsername
+            });
+
             // Vérifier si Twitter est connecté
-            if (!ctx.session.answers.twitterConnected) {
-                await ctx.reply("Please connect your X account first! 🐦");
+            if (!ctx.session?.answers?.twitterConnected) {
+                const keyboard = new InlineKeyboard()
+                    .url("Connect with X 🐦", generateTwitterAuthUrl(env));
+                    
+                await ctx.reply("Please connect your X account first! 🐦", { reply_markup: keyboard });
                 return;
             }
 
@@ -486,6 +566,22 @@ export default {
                 await ctx.reply("An error occurred. Please try again.");
             }
         });
+
+        // Fonction utilitaire pour générer l'URL Twitter
+        function generateTwitterAuthUrl(env: Env): string {
+            const state = Math.random().toString(36).substring(7);
+            const params = new URLSearchParams({
+                'response_type': 'code',
+                'client_id': env.TWITTER_CLIENT_ID,
+                'redirect_uri': env.TWITTER_CALLBACK_URL,
+                'scope': 'users.read tweet.read offline.access',
+                'state': state,
+                'code_challenge': 'challenge',
+                'code_challenge_method': 'plain'
+            });
+
+            return `https://twitter.com/i/oauth2/authorize?${params.toString()}`;
+        }
 
         try {
             await webhookCallback(bot, "cloudflare")({
