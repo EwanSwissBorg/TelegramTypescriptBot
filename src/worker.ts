@@ -44,7 +44,7 @@ type MyContext = Context & SessionFlavor<SessionData>;
 const questions = [
     "1/13 - What is your project name? 🏷️",
     "2/13 - One sentence to describe your project 💎",
-    "3/13 - Send your project picture in jpg or png format 🖼️ (WITH COMPRESSION - so please ensure a high quality image first)",
+    "3/13 - Send your project picture in jpg or png format 🖼️",
     "4/13 - Your website Link 🌐",
     "5/13 - Your telegram OR discord link (your main channel to communicate your community) 💬",
     "6/13 - Your X link 🐦",
@@ -53,7 +53,7 @@ const questions = [
     "9/13 - When do you plan to do your TGE? 📅",
     "10/13 - Select your FDV range 💰",
     "11/13 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
-    "12/13 - Send your token picture in jpg or png format 🖼️ (WITH COMPRESSION - so please ensure a high quality image first)",
+    "12/13 - Send your token picture in jpg or png format 🖼️",
     "13/13 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
 ];
 
@@ -261,6 +261,30 @@ async function saveImageToR2(imageUrl: string, projectName: string, isToken: boo
     } catch (error) {
         console.error('Error saving image to R2:', error);
         throw error;
+    }
+}
+
+// Fonction commune pour traiter les images
+async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean) {
+    try {
+        const r2Url = await saveImageToR2(
+            fileUrl,
+            ctx.session.answers.projectName || 'unknown',
+            isToken,
+            env
+        );
+
+        if (isToken) {
+            ctx.session.answers.tokenPicture = r2Url;
+        } else {
+            ctx.session.answers.projectPicture = r2Url;
+        }
+
+        ctx.session.answers.currentQuestion++;
+        await askNextQuestion(ctx, env);
+    } catch (error) {
+        console.error('Error handling image:', error);
+        await ctx.reply("Error processing image. Please try again.");
     }
 }
 
@@ -527,7 +551,7 @@ export default {
             // Vérifier si une image est attendue
             if (currentQuestion === 2 || currentQuestion === 11) {
                 if (!ctx.message.photo) {
-                    await ctx.reply("Please send an image (jpg or png format). 🖼️");
+                    await ctx.reply("Please send an image (jpg or png format) 🖼️");
                     shouldMoveToNextQuestion = false;
                     return;
                 }
@@ -540,11 +564,11 @@ export default {
             // Gérer les réponses selon la question
             try {
                 if (ctx.message.photo && (currentQuestion === 2 || currentQuestion === 11)) {
-                    const photo = ctx.message.photo[ctx.message.photo.length - 1];
+                    const photo = ctx.message.photo[0]; // Utiliser la première version (non compressée)
                     const file = await ctx.api.getFile(photo.file_id);
                     
                     if (!file.file_path) {
-                        await ctx.reply("Error: Couldn't get the file path. Please try again.");
+                        await ctx.reply("Error: Couldn't get the file path. Please try sending the image as a file.");
                         shouldMoveToNextQuestion = false;
                         return;
                     }
@@ -552,18 +576,9 @@ export default {
                     const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
                     
                     // Sauvegarder l'image dans R2
-                    const r2Url = await saveImageToR2(
-                        fileUrl,
-                        ctx.session.answers.projectName || 'unknown',
-                        currentQuestion === 11,
-                        env
-                    );
+                    await handleImage(ctx, env, fileUrl, currentQuestion === 11);
+                    return; // Ajout de ce return pour éviter le double traitement
                     
-                    if (currentQuestion === 2) {
-                        answers.projectPicture = r2Url;
-                    } else {
-                        answers.tokenPicture = r2Url;
-                    }
                 } else if (ctx.message.text) {
                     switch (currentQuestion) {
                         case 0: answers.projectName = ctx.message.text; break;
@@ -596,6 +611,47 @@ export default {
             } catch (error) {
                 console.error('Error processing message:', error);
                 await ctx.reply("An error occurred. Please try again.");
+            }
+        });
+
+        // Gestionnaire pour les photos (compressées)
+        bot.on("message:photo", async (ctx) => {
+            const currentQuestion = ctx.session.answers.currentQuestion;
+            
+            if (currentQuestion === 2 || currentQuestion === 11) {
+                const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Meilleure qualité disponible
+                const file = await ctx.api.getFile(photo.file_id);
+                
+                if (!file.file_path) {
+                    await ctx.reply("Error: Couldn't get the file path. Please try again.");
+                    return;
+                }
+
+                const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
+                await handleImage(ctx, env, fileUrl, currentQuestion === 11);
+            }
+        });
+
+        // Gestionnaire pour les documents (non compressés)
+        bot.on("message:document", async (ctx) => {
+            const currentQuestion = ctx.session.answers.currentQuestion;
+            
+            if (currentQuestion === 2 || currentQuestion === 11) {
+                const doc = ctx.message.document;
+                
+                if (!doc.mime_type?.startsWith('image/')) {
+                    await ctx.reply("Please send a valid image file (jpg or png).");
+                    return;
+                }
+
+                const file = await ctx.api.getFile(doc.file_id);
+                if (!file.file_path) {
+                    await ctx.reply("Error: Couldn't get the file path. Please try again.");
+                    return;
+                }
+
+                const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
+                await handleImage(ctx, env, fileUrl, currentQuestion === 11);
             }
         });
 
