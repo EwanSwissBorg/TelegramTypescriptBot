@@ -21,6 +21,7 @@ interface UserAnswers {
     projectName?: string;
     description?: string;
     projectPicture?: string;
+    thumbnailPicture?: string;
     websiteLink?: string;
     communityLink?: string;
     xLink?: string;
@@ -42,19 +43,20 @@ type MyContext = Context & SessionFlavor<SessionData>;
 
 // Questions array
 const questions = [
-    "1/13 - What is your project name? 🏷️",
-    "2/13 - One sentence to describe your project 💎",
-    "3/13 - Send your project picture in jpg or png format 🖼️",
-    "4/13 - Your website Link 🌐",
-    "5/13 - Your telegram OR discord link (your main channel to communicate your community) 💬",
-    "6/13 - Your X link 🐦",
-    "7/13 - Select the chain you want to deploy on ⛓️",
-    "8/13 - What is your sector? 🎯 (Depin / SocialFi / DeFi etc.)",
-    "9/13 - When do you plan to do your TGE? 📅",
-    "10/13 - Select your FDV range 💰",
-    "11/13 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
-    "12/13 - Send your token picture in jpg or png format 🖼️",
-    "13/13 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
+    "1/14 - What is your project name? 🏷️",
+    "2/14 - One sentence to describe your project 💎",
+    "3/14 - Send your project picture in jpg or png format 🖼️",
+    "4/14 - Send your thumbnail picture in jpg or png format 🖼️",
+    "5/14 - Your website Link 🌐",
+    "6/14 - Your telegram OR discord link (your main channel to communicate your community) 💬",
+    "7/14 - Your X link 🐦",
+    "8/14 - Select the chain you want to deploy on ⛓️",
+    "9/14 - What is your sector? 🎯 (Depin / SocialFi / DeFi etc.)",
+    "10/14 - When do you plan to do your TGE? 📅",
+    "11/14 - Select your FDV range 💰",
+    "12/14 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
+    "13/14 - Send your token picture in jpg or png format 🖼️",
+    "14/14 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
 ];
 
 // Storage adapter pour Cloudflare KV
@@ -104,6 +106,7 @@ CREATE TABLE IF NOT EXISTS projects (
     projectName TEXT,
     description TEXT,
     projectPicture TEXT,
+    thumbnailPicture TEXT,
     websiteLink TEXT,
     communityLink TEXT,
     xLink TEXT,
@@ -123,7 +126,7 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
     
     if (currentQuestion < questions.length) {
         // Créer les boutons pour les questions spécifiques
-        if (currentQuestion === 6) { // Chain question
+        if (currentQuestion === 7) { // Chain question
             const keyboard = new InlineKeyboard()
                 .text("Solana 🟪", "chain_solana")
                 .text("Avalanche 🔺", "chain_avalanche")
@@ -133,7 +136,7 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
-        else if (currentQuestion === 8) { // TGE date
+        else if (currentQuestion === 9) { // TGE date
             const keyboard = new InlineKeyboard()
                 .text("1-2 weeks", "tge_1-2weeks")
                 .text("1-2 months", "tge_1-2months")
@@ -142,7 +145,7 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
-        else if (currentQuestion === 9) { // FDV
+        else if (currentQuestion === 10) { // FDV
             const keyboard = new InlineKeyboard()
                 .text("1M-5M", "fdv_1-5m")
                 .text("5M-10M", "fdv_5-10m")
@@ -182,16 +185,17 @@ async function showSummary(ctx: MyContext, env: Env) {
         const result = await env.DB.prepare(`
             INSERT INTO projects (
                 userId, twitterUsername, projectName, description, 
-                projectPicture, websiteLink, communityLink, xLink,
+                projectPicture, thumbnailPicture, websiteLink, communityLink, xLink,
                 chain, sector, tgeDate, fdv, ticker, tokenPicture,
                 dataRoom, createdAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         `).bind(
             userId,
             answers.twitterUsername || '',
             answers.projectName || '',
             answers.description || '',
             answers.projectPicture || '',
+            answers.thumbnailPicture || '',
             answers.websiteLink || '',
             answers.communityLink || '',
             answers.xLink || '',
@@ -212,6 +216,7 @@ async function showSummary(ctx: MyContext, env: Env) {
 🏷️ Project Name: ${answers.projectName}
 💎 Description: ${answers.description}
 🖼️ Project Picture: ${answers.projectPicture ? 'Saved ✅' : 'Not provided'}
+🖼️ Thumbnail Picture: ${answers.thumbnailPicture ? 'Saved ✅' : 'Not provided'}
 🌐 Website: ${answers.websiteLink}
 💬 Community Link: ${answers.communityLink}
 🐦 X Link: ${answers.xLink}
@@ -276,6 +281,8 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
 
         if (isToken) {
             ctx.session.answers.tokenPicture = r2Url;
+        } else if (ctx.session.answers.currentQuestion === 3) {
+            ctx.session.answers.thumbnailPicture = r2Url;
         } else {
             ctx.session.answers.projectPicture = r2Url;
         }
@@ -380,6 +387,7 @@ export default {
                                 projectName: '',
                                 description: '',
                                 projectPicture: '',
+                                thumbnailPicture: '',
                                 websiteLink: '',
                                 communityLink: '',
                                 xLink: '',
@@ -419,6 +427,7 @@ export default {
                     projectName: '',
                     description: '',
                     projectPicture: '',
+                    thumbnailPicture: '',
                     websiteLink: '',
                     communityLink: '',
                     xLink: '',
@@ -456,6 +465,7 @@ export default {
                                 projectName: '',
                                 description: '',
                                 projectPicture: '',
+                                thumbnailPicture: '',
                                 websiteLink: '',
                                 communityLink: '',
                                 xLink: '',
@@ -549,8 +559,8 @@ export default {
             let shouldMoveToNextQuestion = true;
 
             // Vérifier si une image est attendue
-            if (currentQuestion === 2 || currentQuestion === 11) {
-                if (!ctx.message.photo) {
+            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12) {
+                if (!ctx.message.photo && !ctx.message.document) {
                     await ctx.reply("Please send an image (jpg or png format) 🖼️");
                     shouldMoveToNextQuestion = false;
                     return;
@@ -563,7 +573,7 @@ export default {
 
             // Gérer les réponses selon la question
             try {
-                if (ctx.message.photo && (currentQuestion === 2 || currentQuestion === 11)) {
+                if (ctx.message.photo && (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12)) {
                     const photo = ctx.message.photo[0]; // Utiliser la première version (non compressée)
                     const file = await ctx.api.getFile(photo.file_id);
                     
@@ -576,21 +586,23 @@ export default {
                     const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
                     
                     // Sauvegarder l'image dans R2
-                    await handleImage(ctx, env, fileUrl, currentQuestion === 11);
+                    await handleImage(ctx, env, fileUrl, currentQuestion === 12);
                     return; // Ajout de ce return pour éviter le double traitement
                     
                 } else if (ctx.message.text) {
                     switch (currentQuestion) {
                         case 0: answers.projectName = ctx.message.text; break;
                         case 1: answers.description = ctx.message.text; break;
-                        case 3: answers.websiteLink = ctx.message.text; break;
-                        case 4: answers.communityLink = ctx.message.text; break;
-                        case 5: answers.xLink = ctx.message.text; break;
-                        case 6: answers.chain = ctx.message.text; break;
-                        case 7: answers.sector = ctx.message.text; break;
-                        case 8: answers.tgeDate = ctx.message.text; break;
-                        case 9: answers.fdv = ctx.message.text; break;
-                        case 10: 
+                        case 2: answers.projectPicture = ctx.message.text; break;
+                        case 3: answers.thumbnailPicture = ctx.message.text; break;
+                        case 4: answers.websiteLink = ctx.message.text; break;
+                        case 5: answers.communityLink = ctx.message.text; break;
+                        case 6: answers.xLink = ctx.message.text; break;
+                        case 7: answers.chain = ctx.message.text; break;
+                        case 8: answers.sector = ctx.message.text; break;
+                        case 9: answers.tgeDate = ctx.message.text; break;
+                        case 10: answers.fdv = ctx.message.text; break;
+                        case 11: 
                             if (!ctx.message.text.startsWith('$') || ctx.message.text.length > 6) {
                                 await ctx.reply("Invalid ticker format. Must start with '$' and be up to 5 characters long in uppercase. 💔");
                                 shouldMoveToNextQuestion = false;
@@ -598,7 +610,17 @@ export default {
                             }
                             answers.ticker = ctx.message.text;
                             break;
-                        case 12: answers.dataRoom = ctx.message.text; break;
+                        case 13:
+                            answers.dataRoom = ctx.message.text;
+                            console.log('Saving dataRoom:', ctx.message.text);
+                            
+                            // Force la sauvegarde dans le KV
+                            if (ctx.from?.id) {
+                                const storage = new CloudflareStorage(env.SESSION_STORE);
+                                await storage.write(ctx.from.id.toString(), ctx.session);
+                                console.log('Session saved with dataRoom:', ctx.session);
+                            }
+                            break;
                     }
                 }
 
@@ -618,7 +640,7 @@ export default {
         bot.on("message:photo", async (ctx) => {
             const currentQuestion = ctx.session.answers.currentQuestion;
             
-            if (currentQuestion === 2 || currentQuestion === 11) {
+            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12) {
                 const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Meilleure qualité disponible
                 const file = await ctx.api.getFile(photo.file_id);
                 
@@ -628,7 +650,7 @@ export default {
                 }
 
                 const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
-                await handleImage(ctx, env, fileUrl, currentQuestion === 11);
+                await handleImage(ctx, env, fileUrl, currentQuestion === 12);
             }
         });
 
@@ -636,7 +658,7 @@ export default {
         bot.on("message:document", async (ctx) => {
             const currentQuestion = ctx.session.answers.currentQuestion;
             
-            if (currentQuestion === 2 || currentQuestion === 11) {
+            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12) {
                 const doc = ctx.message.document;
                 
                 if (!doc.mime_type?.startsWith('image/')) {
@@ -651,7 +673,7 @@ export default {
                 }
 
                 const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
-                await handleImage(ctx, env, fileUrl, currentQuestion === 11);
+                await handleImage(ctx, env, fileUrl, currentQuestion === 12);
             }
         });
 

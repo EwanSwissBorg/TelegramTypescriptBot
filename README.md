@@ -24,4 +24,5 @@ wrangler secret put TWITTER_CALLBACK_URL --config wrangler_staging.toml
 wrangler secret put BUCKET_URL --config wrangler_staging.toml
 curl "https://api.telegram.org/bot<STAGING_BOT_TOKEN>/setWebhook?url=https://borgpad-bot-staging.<votre-compte>.workers.dev"
 curl "https://api.telegram.org/bot<STAGING_BOT_TOKEN>/getWebhookInfo"
+wrangler d1 execute borgpad-bot-staging-database --command "ALTER TABLE projects ADD COLUMN thumbnailPicture TEXT;" --config wrangler_staging.toml --remote
 ```
