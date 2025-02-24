@@ -45,7 +45,7 @@ type MyContext = Context & SessionFlavor<SessionData>;
 const questions = [
     "1/14 - What is your project name? 🏷️",
     "2/14 - One sentence to describe your project 💎",
-    "3/14 - Send your project picture in jpg or png format 🖼️",
+    "3/14 - Send your project logo in jpg or png format 🖼️",
     "4/14 - Send your thumbnail picture in jpg or png format 🖼️",
     "5/14 - Your website Link 🌐",
     "6/14 - Your telegram OR discord link (your main channel to communicate your community) 💬",
