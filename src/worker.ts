@@ -652,6 +652,12 @@ export default {
                         await storage.write(ctx.from.id.toString(), ctx.session);
                     }
 
+                    // Envoyer les images d'exemple en utilisant des URLs
+                    await ctx.replyWithPhoto("https://pub-0cbbb3349b8a4e4384de7e35e44350eb.r2.dev/screenshots/screen1.png");
+                    await ctx.replyWithPhoto("https://pub-0cbbb3349b8a4e4384de7e35e44350eb.r2.dev/screenshots/screen2.png", {
+                        caption: "Here are the questions you need to answer to apply to the BorgPad Application Program."
+                    });
+
                     await ctx.reply(`Welcome @${username}! 👋\n\nLet's start with some questions about your project.`);
                     await askNextQuestion(ctx, env);
                 } catch (error) {
