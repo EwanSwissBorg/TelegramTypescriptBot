@@ -594,7 +594,14 @@ export default {
                 } else if (ctx.message.text) {
                     switch (currentQuestion) {
                         case 0: answers.projectName = ctx.message.text; break;
-                        case 1: answers.description = ctx.message.text; break;
+                        case 1: 
+                            if (ctx.message.text.length > 80) {
+                                await ctx.reply("Description too long! Please limit your description to 80 characters (spaces included). Current length: " + ctx.message.text.length);
+                                shouldMoveToNextQuestion = false;
+                                return;
+                            }
+                            answers.description = ctx.message.text;
+                            break;
                         case 2: answers.projectPicture = ctx.message.text; break;
                         case 3: answers.thumbnailPicture = ctx.message.text; break;
                         case 4: answers.websiteLink = ctx.message.text; break;
