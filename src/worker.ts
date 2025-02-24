@@ -403,13 +403,20 @@ Book a call : https://calendly.com/mark-borgpad/30min to validate all this toget
 }
 
 // Fonction pour sauvegarder l'image dans R2
-async function saveImageToR2(imageUrl: string, projectName: string, isToken: boolean, env: Env): Promise<string> {
+async function saveImageToR2(imageUrl: string, projectName: string, isToken: boolean, isThumbnail: boolean, env: Env): Promise<string> {
     try {
         // Nettoyer le nom du projet pour le chemin
         const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
         
         // Construire le chemin du fichier
-        const fileName = isToken ? `${cleanProjectName}_token.png` : `${cleanProjectName}_logo.png`;
+        let fileName;
+        if (isToken) {
+            fileName = `${cleanProjectName}_token.png`;
+        } else if (isThumbnail) {
+            fileName = `${cleanProjectName}_thumbnail.png`;
+        } else {
+            fileName = `${cleanProjectName}_logo.png`;
+        }
         const filePath = `images/${cleanProjectName}/${fileName}`;
 
         // Télécharger l'image depuis Telegram
@@ -448,6 +455,7 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
             fileUrl,
             ctx.session.answers.projectName || 'unknown',
             isToken,
+            currentQuestion === 3, // isThumbnail
             env
         );
 
