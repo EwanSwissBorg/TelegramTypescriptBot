@@ -1,4 +1,4 @@
-import { Bot, webhookCallback, Context, session, SessionFlavor, InlineKeyboard } from "grammy";
+import { Bot, webhookCallback, Context, session, SessionFlavor, InlineKeyboard, InputFile } from "grammy";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { D1Database, ExecutionContext, KVNamespace } from "@cloudflare/workers-types";
 import { R2Bucket } from "@cloudflare/workers-types";
@@ -211,6 +211,166 @@ async function showSummary(ctx: MyContext, env: Env) {
         ).run();
 
         console.log('DB insert result:', result);
+
+        // Créer l'objet JSON au format souhaité
+        const projectJson = {
+            id: answers.projectName,
+            config: {
+                cluster: "mainnet",
+                lpPositionToBeBurned: true,
+                raiseTargetInUsd: 100000,
+                fdv: parseInt(answers.fdv?.split('-')[0].replace(/[^0-9]/g, '') || '0') * 1000000, // Extraire le premier nombre du FDV et ajouter 6 zéros
+                marketCap: 0,
+                totalTokensForLiquidityPool: 14285714,
+                totalTokensForRewardDistribution: 14285714,
+                rewardsDistributionTimeInMonths: 6,
+                finalSnapshotTimestamp: null,
+                lbpWalletAddress: null,
+                raisedTokenData: {
+                    iconUrl: "https://files.borgpad.com/usdc-logo.png",
+                    ticker: "USDC",
+                    mintAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    decimals: 6,
+                    fixedTokenPriceInUsd: 1,
+                    coinGeckoName: "usd"
+                },
+                launchedTokenData: {
+                    iconUrl: answers.tokenPicture,
+                    ticker: answers.ticker?.replace('$', '') || '',
+                    mintAddress: null,
+                    decimals: null,
+                    fixedTokenPriceInUsd: 0.007
+                }
+            },
+            info: {
+                claimUrl: null,
+                tweetUrl: null,
+                tokenContractUrl: null,
+                poolContractUrl: null,
+                projectType: "draft-pick",
+                title: answers.projectName,
+                subtitle: answers.description,
+                logoUrl: answers.projectPicture,
+                thumbnailUrl: answers.thumbnailPicture,
+                origin: "The Singularity",
+                sector: answers.sector,
+                tokenGenerationEventDate: answers.tgeDate,
+                targetFdv: answers.fdv,
+                chain: {
+                    name: answers.chain,
+                    iconUrl: "https://files.borgpad.com/images/zkagi/solana-small.jpg"
+                },
+                dataRoom: {
+                    backgroundImgUrl: "",
+                    url: answers.dataRoom
+                },
+                liquidityPool: {
+                    name: "Raydium",
+                    iconUrl: "https://files.borgpad.com/images/shared/raydium-logo-small.png",
+                    lbpType: "Mixed",
+                    lockingPeriod: "∞"
+                },
+                curator: {
+                    avatarUrl: "",
+                    fullName: "TBD",
+                    position: "TBD",
+                    socials: [
+                      {
+                        iconType: "WEB",
+                        url: "",
+                        label: "Web"
+                      },
+                      {
+                        iconType: "X_TWITTER",
+                        url: "https://x.com/",
+                        label: ""
+                      }
+                    ]
+                  },
+                projectLinks: [
+                    {
+                        iconType: "WEB",
+                        url: answers.websiteLink,
+                        label: ""
+                    },
+                    {
+                        iconType: "Telegram",
+                        url: answers.communityLink,
+                        label: ""
+                    },
+                    {
+                        iconType: "X_TWITTER",
+                        url: answers.xLink,
+                        label: ""
+                    }
+                ],
+                timeline: [
+                    {
+                        id: "REGISTRATION_OPENS",
+                        label: "Registration Opens",
+                        date: null
+                    },
+                    {
+                        id: "SALE_OPENS",
+                        label: "Sale Opens",
+                        date: null
+                    },
+                    {
+                        id: "SALE_CLOSES",
+                        label: "Sale Closes",
+                        date: null
+                    },
+                    {
+                        id: "REWARD_DISTRIBUTION",
+                        label: "Reward Distribution",
+                        date: null
+                    },
+                    {
+                        id: "DISTRIBUTION_OVER",
+                        label: "Distribution Over",
+                        date: null
+                    }
+                ],
+                tiers: [
+                    {
+                        id: "tier10",
+                        label: "Borgers Club.",
+                        quests: [
+                            {
+                                type: "HOLD_TOKEN",
+                                tokenName: "BORG",
+                                tokenAmount: "1000",
+                                tokenMintAddress: "3dQTr7ror2QPKQ3GbBCokJUmjErGg8kTJzdnYjNfvi3Z"
+                            }
+                        ],
+                        benefits: {
+                            startDate: "2025-03-18T15:00:00Z",
+                            minInvestment: "100",
+                            maxInvestment: "500"
+                        }
+                    },
+                    {
+                        id: "tier99",
+                        label: "Public Sale",
+                        quests: [],
+                        benefits: {
+                            startDate: "2025-03-18T18:15:00Z",
+                            minInvestment: "10",
+                            maxInvestment: "250"
+                        }
+                    }
+                ]
+            }
+        };
+
+        // Sauvegarder dans la table projects_json
+        await env.DB.prepare(`
+            INSERT OR REPLACE INTO projects_json (id, json)
+            VALUES (?, ?)
+        `).bind(
+            answers.projectName,
+            JSON.stringify(projectJson)
+        ).run();
 
         const summary = `
 📋 Project Summary:
