@@ -439,7 +439,7 @@ async function saveImageToR2(imageUrl: string, projectName: string, isToken: boo
 }
 
 // Fonction commune pour traiter les images
-async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean) {
+async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean, isThumbnail: boolean) {
     try {
         // Vérifier la taille du fichier
         const response = await fetch(fileUrl);
@@ -455,16 +455,19 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
             fileUrl,
             ctx.session.answers.projectName || 'unknown',
             isToken,
-            currentQuestion === 3, // isThumbnail
+            isThumbnail,
             env
         );
 
         if (isToken) {
             ctx.session.answers.tokenPicture = r2Url;
-        } else if (ctx.session.answers.currentQuestion === 3) {
+            console.log('Token picture saved:', r2Url);
+        } else if (isThumbnail) {
             ctx.session.answers.thumbnailPicture = r2Url;
+            console.log('Thumbnail picture saved:', r2Url);
         } else {
             ctx.session.answers.projectPicture = r2Url;
+            console.log('Project picture saved:', r2Url);
         }
 
         ctx.session.answers.currentQuestion++;
@@ -772,7 +775,7 @@ export default {
                     const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
                     
                     // Sauvegarder l'image dans R2
-                    await handleImage(ctx, env, fileUrl, currentQuestion === 12);
+                    await handleImage(ctx, env, fileUrl, currentQuestion === 12, currentQuestion === 3);
                     return; // Ajout de ce return pour éviter le double traitement
                     
                 } else if (ctx.message.text) {
@@ -843,7 +846,7 @@ export default {
                 }
 
                 const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
-                await handleImage(ctx, env, fileUrl, currentQuestion === 12);
+                await handleImage(ctx, env, fileUrl, currentQuestion === 12, currentQuestion === 3);
             }
         });
 
@@ -866,7 +869,7 @@ export default {
                 }
 
                 const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
-                await handleImage(ctx, env, fileUrl, currentQuestion === 12);
+                await handleImage(ctx, env, fileUrl, currentQuestion === 12, currentQuestion === 3);
             }
         });
 
