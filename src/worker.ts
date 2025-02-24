@@ -434,6 +434,16 @@ async function saveImageToR2(imageUrl: string, projectName: string, isToken: boo
 // Fonction commune pour traiter les images
 async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean) {
     try {
+        // Vérifier la taille du fichier
+        const response = await fetch(fileUrl);
+        const contentLength = parseInt(response.headers.get('content-length') || '0');
+        const maxSize = 1024 * 1024; // 1 MB en bytes
+
+        if (contentLength > maxSize) {
+            await ctx.reply("File too large! Please send an image smaller than 1MB 🚫");
+            return;
+        }
+
         const r2Url = await saveImageToR2(
             fileUrl,
             ctx.session.answers.projectName || 'unknown',
