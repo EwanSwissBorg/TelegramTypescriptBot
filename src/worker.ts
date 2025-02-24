@@ -128,32 +128,32 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
         // Créer les boutons pour les questions spécifiques
         if (currentQuestion === 7) { // Chain question
             const keyboard = new InlineKeyboard()
-                .text("Solana 🟪", "chain_solana")
-                .text("Avalanche 🔺", "chain_avalanche")
+                .text("Solana 🟪", "chain_Solana")
+                .text("Avalanche 🔺", "chain_Avalanche")
                 .row()
-                .text("Abstract 🟩", "chain_abstract")
-                .text("Base 🟦", "chain_base")
+                .text("Abstract 🟩", "chain_Abstract")
+                .text("Base 🟦", "chain_Base")
                 .row()
-                .text("Sonic 🟡", "chain_sonic"); // Added Sonic chain
+                .text("Sonic 🟡", "chain_Sonic"); // Added Sonic chain
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
         else if (currentQuestion === 9) { // TGE date
             const keyboard = new InlineKeyboard()
-                .text("1-2 weeks", "tge_1-2weeks")
-                .text("1-2 months", "tge_1-2months")
+                .text("1-2 weeks", "tge_1-2 weeks")
+                .text("1-2 months", "tge_1-2 months")
                 .row()
-                .text("2+ months", "tge_2plus");
+                .text("2+ months", "tge_2+ months");
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
         else if (currentQuestion === 10) { // FDV
             const keyboard = new InlineKeyboard()
-                .text("1M-5M", "fdv_1-5m")
-                .text("5M-10M", "fdv_5-10m")
+                .text("1M-5M", "fdv_$1M - $5M")
+                .text("5M-10M", "fdv_$5M - $10M")
                 .row()
-                .text("10M-25M", "fdv_10-25m")
-                .text("25M-50M", "fdv_25-50m");
+                .text("10M-25M", "fdv_$10M - $25M")
+                .text("25M-50M", "fdv_$25M - $50M");
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
