@@ -2,6 +2,7 @@ import { Bot, webhookCallback, Context, session, SessionFlavor, InlineKeyboard, 
 import { FileAdapter } from "@grammyjs/storage-file";
 import { D1Database, ExecutionContext, KVNamespace } from "@cloudflare/workers-types";
 import { R2Bucket } from "@cloudflare/workers-types";
+import ImageKit from 'imagekit';
 
 // Interfaces
 interface Env {
@@ -58,6 +59,13 @@ const questions = [
     "13/14 - Send your token picture in jpg or png format 🖼️",
     "14/14 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
 ];
+
+// Configuration ImageKit
+const imagekit = new ImageKit({
+    publicKey: "public_aBq2yqSgItZIaYvEkoyIX85bbGM=",
+    privateKey: "private_q+Rw2C5ihMNmcwOxAVYDEQwyeYs=", // À remplacer par votre clé privée
+    urlEndpoint: "https://ik.imagekit.io/omdmrp6th"
+});
 
 // Storage adapter pour Cloudflare KV
 class CloudflareStorage {
@@ -403,7 +411,7 @@ Book a call : https://calendly.com/mark-borgpad/30min to validate all this toget
 }
 
 // Fonction pour sauvegarder l'image dans R2
-async function saveImageToR2(imageUrl: string, projectName: string, isToken: boolean, isThumbnail: boolean, env: Env): Promise<string> {
+async function saveImageToR2(imageUrl: string, projectName: string, isToken: boolean, isThumbnail: boolean, env: Env, imageBuffer: ArrayBuffer): Promise<string> {
     try {
         // Nettoyer le nom du projet pour le chemin
         const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
@@ -418,10 +426,6 @@ async function saveImageToR2(imageUrl: string, projectName: string, isToken: boo
             fileName = `${cleanProjectName}_logo.png`;
         }
         const filePath = `images/${cleanProjectName}/${fileName}`;
-
-        // Télécharger l'image depuis Telegram
-        const response = await fetch(imageUrl);
-        const imageBuffer = await response.arrayBuffer();
 
         // Sauvegarder dans R2
         await env.BUCKET.put(filePath, imageBuffer, {
@@ -438,30 +442,148 @@ async function saveImageToR2(imageUrl: string, projectName: string, isToken: boo
     }
 }
 
+// Fonction pour obtenir les dimensions de l'image
+async function getImageDimensions(imageUrl: string): Promise<{ width: number; height: number }> {
+    try {
+        const response = await fetch(imageUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = new Uint8Array(arrayBuffer);
+
+        // Vérifier si c'est un PNG
+        if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+            const width = buffer[16] * 256 * 256 * 256 + buffer[17] * 256 * 256 + buffer[18] * 256 + buffer[19];
+            const height = buffer[20] * 256 * 256 * 256 + buffer[21] * 256 * 256 + buffer[22] * 256 + buffer[23];
+            return { width, height };
+        }
+        // Vérifier si c'est un JPEG
+        else if (buffer[0] === 0xFF && buffer[1] === 0xD8) {
+            let pos = 2;
+            while (pos < buffer.length) {
+                if (buffer[pos] !== 0xFF) break;
+                if (buffer[pos + 1] === 0xC0 || buffer[pos + 1] === 0xC2) {
+                    const height = buffer[pos + 5] * 256 + buffer[pos + 6];
+                    const width = buffer[pos + 7] * 256 + buffer[pos + 8];
+                    return { width, height };
+                }
+                pos += 2 + buffer[pos + 2] * 256 + buffer[pos + 3];
+            }
+        }
+        throw new Error('Unsupported image format. Please use PNG or JPEG.');
+    } catch (error) {
+        console.error('Error getting image dimensions:', error);
+        throw new Error('Could not determine image dimensions');
+    }
+}
+
+// Fonction pour uploader et transformer l'image
+async function uploadAndTransformImage(imageBuffer: ArrayBuffer, width: number, height: number, fileName: string): Promise<string> {
+    try {
+        // Upload de l'image
+        const uploadResponse = await imagekit.upload({
+            file: Buffer.from(imageBuffer),
+            fileName: fileName,
+            useUniqueFileName: true
+        });
+
+        // Générer l'URL avec la transformation
+        const transformedUrl = imagekit.url({
+            src: uploadResponse.url,
+            transformation: [{
+                height: height.toString(),
+                width: width.toString(),
+                cropMode: 'maintain_ratio'
+            }]
+        });
+
+        console.log('Transformed URL:', transformedUrl);
+        return transformedUrl;
+    } catch (error) {
+        console.error('Error in ImageKit processing:', error);
+        throw error;
+    }
+}
+
 // Fonction commune pour traiter les images
 async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean) {
     try {
         // Vérifier la taille du fichier
         const response = await fetch(fileUrl);
         const contentLength = parseInt(response.headers.get('content-length') || '0');
-        const maxSize = 1024 * 1024; // 1 MB en bytes
+        const maxSize = 1024 * 1024; // 1 MB
 
         if (contentLength > maxSize) {
             await ctx.reply("File too large! Please send an image smaller than 1MB 🚫");
             return;
         }
 
+        // Vérifier les dimensions
+        const dimensions = await getImageDimensions(fileUrl);
+        console.log('Original image dimensions:', dimensions);
+        const currentQuestion = ctx.session.answers.currentQuestion;
+
+        const imageBuffer = await response.arrayBuffer();
+        let processedImageUrl;
+
+        // Vérification et ajustement pour le logo (question 2)
+        if (currentQuestion === 2) {
+            const minSide = Math.min(dimensions.width, dimensions.height);
+            if (minSide < 120) {
+                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Logo must be at least 120x120 pixels! Optimal size is 200x200 pixels. 🎨`);
+                return;
+            }
+            processedImageUrl = await uploadAndTransformImage(
+                imageBuffer,
+                200,
+                200,
+                `${ctx.session.answers.projectName}_logo.png`
+            );
+            await ctx.reply("Logo has been automatically cropped to a square format. ✂️");
+        }
+        // Vérification et ajustement pour la thumbnail (question 3)
+        else if (currentQuestion === 3) {
+            if (dimensions.width < 400 || dimensions.height < 220) {
+                await ctx.reply(`Thumbnail size is ${dimensions.width}x${dimensions.height} pixels. Thumbnail must be at least 400x220 pixels! Please resize your image to 600x330 pixels for optimal results. 🖼️`);
+                return;
+            }
+            processedImageUrl = await uploadAndTransformImage(
+                imageBuffer,
+                600,
+                330,
+                `${ctx.session.answers.projectName}_thumbnail.png`
+            );
+            await ctx.reply("Thumbnail has been automatically resized to 600x330 pixels. 🔄");
+        }
+        // Vérification et ajustement pour le token (question 12)
+        else if (isToken) {
+            if (dimensions.width < 24 || dimensions.height < 24) {
+                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Token image must be at least 24x24 pixels! Optimal size is 80x80 pixels. 🎯`);
+                return;
+            }
+            processedImageUrl = await uploadAndTransformImage(
+                imageBuffer,
+                80,
+                80,
+                `${ctx.session.answers.projectName}_token.png`
+            );
+            await ctx.reply("Token image has been automatically cropped to a square format. ✂️");
+        }
+
+        // Télécharger l'image transformée
+        const processedResponse = await fetch(processedImageUrl || '');
+        const processedImageBuffer = await processedResponse.arrayBuffer();
+
         const r2Url = await saveImageToR2(
-            fileUrl,
+            processedImageUrl || '',
             ctx.session.answers.projectName || 'unknown',
             isToken,
-            currentQuestion === 3, // isThumbnail
-            env
+            currentQuestion === 3,
+            env,
+            processedImageBuffer
         );
 
         if (isToken) {
             ctx.session.answers.tokenPicture = r2Url;
-        } else if (ctx.session.answers.currentQuestion === 3) {
+        } else if (currentQuestion === 3) {
             ctx.session.answers.thumbnailPicture = r2Url;
         } else {
             ctx.session.answers.projectPicture = r2Url;
@@ -471,7 +593,7 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
         await askNextQuestion(ctx, env);
     } catch (error) {
         console.error('Error handling image:', error);
-        await ctx.reply("Error processing image. Please try again.");
+        await ctx.reply("Error processing image. Please make sure you're sending a valid JPG or PNG file and try again.");
     }
 }
 
