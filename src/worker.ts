@@ -496,42 +496,6 @@ Book a call : https://calendly.com/mark-borgpad/30min to validate all this toget
     }
 }
 
-// Fonction pour sauvegarder l'image dans R2
-async function saveImageToR2(imageUrl: string, projectName: string, isToken: boolean, isThumbnail: boolean, env: Env): Promise<string> {
-    try {
-        // Nettoyer le nom du projet pour le chemin
-        const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        
-        // Construire le chemin du fichier
-        let fileName;
-        if (isToken) {
-            fileName = `${cleanProjectName}_token.png`;
-        } else if (isThumbnail) {
-            fileName = `${cleanProjectName}_thumbnail.png`;
-        } else {
-            fileName = `${cleanProjectName}_logo.png`;
-        }
-        const filePath = `images/${cleanProjectName}/${fileName}`;
-
-        // Télécharger l'image depuis Telegram
-        const response = await fetch(imageUrl);
-        const imageBuffer = await response.arrayBuffer();
-
-        // Sauvegarder dans R2
-        await env.BUCKET.put(filePath, imageBuffer, {
-            httpMetadata: {
-                contentType: 'image/png'
-            }
-        });
-
-        // Retourner l'URL complète avec le domaine personnalisé
-        return `https://${env.BUCKET_URL}/${filePath}`;
-    } catch (error) {
-        console.error('Error saving image to R2:', error);
-        throw error;
-    }
-}
-
 // Fonction pour obtenir les dimensions de l'image
 async function getImageDimensions(imageUrl: string): Promise<{ width: number; height: number }> {
     try {
@@ -804,40 +768,6 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
         } else {
             await ctx.reply("Error processing image. Please make sure you're sending a valid JPG or PNG file and try again.");
         }
-    }
-}
-
-// Nouvelle fonction pour sauvegarder un buffer dans R2
-async function saveImageToR2WithBuffer(
-    imageBuffer: ArrayBuffer,
-    projectName: string,
-    isToken: boolean,
-    isThumbnail: boolean,
-    env: Env
-): Promise<string> {
-    try {
-        const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        
-        let fileName;
-        if (isToken) {
-            fileName = `${cleanProjectName}_token.png`;
-        } else if (isThumbnail) {
-            fileName = `${cleanProjectName}_thumbnail.png`;
-        } else {
-            fileName = `${cleanProjectName}_logo.png`;
-        }
-        const filePath = `images/${cleanProjectName}/${fileName}`;
-
-        await env.BUCKET.put(filePath, imageBuffer, {
-            httpMetadata: {
-                contentType: 'image/png'
-            }
-        });
-
-        return `https://${env.BUCKET_URL}/${filePath}`;
-    } catch (error) {
-        console.error('Error saving image to R2:', error);
-        throw error;
     }
 }
 
