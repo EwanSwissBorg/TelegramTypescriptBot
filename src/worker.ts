@@ -44,7 +44,7 @@ type MyContext = Context & SessionFlavor<SessionData>;
 // Questions array
 const questions = [
     "1/14 - What is your project name? 🏷️",
-    "2/14 - One sentence to describe your project 💎",
+    "2/14 - One sentence to describe your project 💎 (Max 80 characters)",
     "3/14 - Send your project logo in jpg or png format 🖼️",
     "4/14 - Send your thumbnail picture in jpg or png format 🖼️",
     "5/14 - Your website Link 🌐",
@@ -839,7 +839,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                         caption: "Here are the questions you need to answer to apply to the BorgPad Application Program."
                     });
 
-                    await ctx.reply(`Welcome @${username}! 👋\n\nLet's start with some questions about your project.`);
+                    await ctx.reply(`GM @${username}! 👋\n\nI'll guide you through creating your page in the Draft Pick section on BorgPad. You'll find attached photos showing where all the information will be displayed. Shall we begin?`);
                     await askNextQuestion(ctx, env);
                 } catch (error) {
                     console.error('Error in Twitter callback:', error);
