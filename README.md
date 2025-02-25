@@ -26,4 +26,6 @@ curl "https://api.telegram.org/bot<STAGING_BOT_TOKEN>/setWebhook?url=https://bor
 curl "https://api.telegram.org/bot<STAGING_BOT_TOKEN>/getWebhookInfo"
 wrangler d1 execute borgpad-bot-staging-database --command "ALTER TABLE projects ADD COLUMN thumbnailPicture TEXT;" --config wrangler_staging.toml --remote
 wrangler d1 execute borgpad-bot-staging-database --command "CREATE TABLE IF NOT EXISTS projects_json (id TEXT PRIMARY KEY, json TEXT NOT NULL);" --config wrangler_staging.toml --remote
+wrangler secret put CF_ACCOUNT_ID --config wrangler_staging.toml
+wrangler secret put CF_API_TOKEN --config wrangler_staging.toml
 ```

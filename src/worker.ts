@@ -13,6 +13,8 @@ interface Env {
     DB: D1Database;
     BUCKET: R2Bucket;
     BUCKET_URL: string;
+    CF_ACCOUNT_ID: string;
+    CF_API_TOKEN: string;
 }
 
 interface UserAnswers {
@@ -410,7 +412,6 @@ Book a call : https://calendly.com/mark-borgpad/30min to validate all this toget
 💰 FDV : ${answers.fdv}
 🎫 Token : ${answers.ticker}
 
-🔗 Liens :
 🌐 Website : ${answers.websiteLink}
 💬 Community : ${answers.communityLink}
 🐦 X : ${answers.xLink}
@@ -506,7 +507,55 @@ async function getImageDimensions(imageUrl: string): Promise<{ width: number; he
     }
 }
 
-// Fonction commune pour traiter les images
+// Fonction pour redimensionner l'image via un service d'URL avec des contraintes spécifiques
+async function resizeImageWithService(imageUrl: string, width: number, height: number, isThumbnail: boolean, isSquare: boolean): Promise<ArrayBuffer> {
+    try {
+        // Utiliser images.weserv.nl, un service de transformation d'images
+        const serviceUrl = new URL('https://images.weserv.nl/');
+        
+        // Ajouter l'URL de l'image source
+        serviceUrl.searchParams.append('url', imageUrl);
+        
+        // Ajouter les paramètres de redimensionnement
+        if (isThumbnail) {
+            // Pour les thumbnails, on veut respecter le ratio 600x330
+            serviceUrl.searchParams.append('w', width.toString());
+            serviceUrl.searchParams.append('h', height.toString());
+            serviceUrl.searchParams.append('fit', 'cover'); // Recadrer pour remplir exactement les dimensions
+            serviceUrl.searchParams.append('a', 'center'); // Centrer le recadrage
+        } else if (isSquare) {
+            // Pour les logos et tokens, on veut des images carrées
+            serviceUrl.searchParams.append('w', width.toString());
+            serviceUrl.searchParams.append('h', height.toString());
+            serviceUrl.searchParams.append('fit', 'cover'); // Recadrer pour obtenir un carré
+            serviceUrl.searchParams.append('a', 'center'); // Centrer le recadrage
+        } else {
+            // Fallback (ne devrait pas être utilisé)
+            serviceUrl.searchParams.append('w', width.toString());
+            serviceUrl.searchParams.append('h', height.toString());
+            serviceUrl.searchParams.append('fit', 'inside');
+        }
+        
+        // Ajouter des paramètres de qualité
+        serviceUrl.searchParams.append('q', '90');
+        serviceUrl.searchParams.append('output', 'jpg');
+        
+        console.log('Resizing image with service:', serviceUrl.toString());
+        
+        // Récupérer l'image redimensionnée
+        const response = await fetch(serviceUrl.toString());
+        if (!response.ok) {
+            throw new Error(`Failed to resize image: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.arrayBuffer();
+    } catch (error) {
+        console.error('Error resizing image with service:', error);
+        throw error;
+    }
+}
+
+// Modifier la fonction handleImage pour utiliser le service de redimensionnement avec contraintes
 async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean, isThumbnail: boolean) {
     try {
         console.log('Processing image:', fileUrl);
@@ -531,61 +580,164 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
         const dimensions = await getImageDimensions(fileUrl);
         console.log('Image dimensions:', dimensions);
 
-        // Vérification pour le logo (question 2)
+        // Vérifications des dimensions
         if (!isToken && !isThumbnail) {
-            const minSide = Math.min(dimensions.width, dimensions.height);
-            if (minSide < 120) {
-                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Logo must be at least 120x120 pixels! Optimal size is 200x200 pixels. 🎨`);
+            // Pour les logos, taille minimale de 120x120
+            if (dimensions.width < 120 || dimensions.height < 120) {
+                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Logo must be at least 120x120 pixels! Optimal size is 200x200 pixels. 🎨`);
                 return;
             }
-            if (dimensions.width !== dimensions.height) {
-                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Please provide a square image for the logo (same width and height). 🔲`);
-                return;
-            }
-        }
-        // Vérification pour la thumbnail (question 3)
-        else if (isThumbnail) {
-            if (dimensions.width < 400 || dimensions.height < 220) {
-                await ctx.reply(`Thumbnail size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Thumbnail must be at least 400x220 pixels! Please provide an image of 600x330 pixels for optimal results. 🖼️`);
-                return;
-            }
-            const ratio = dimensions.width / dimensions.height;
-            const expectedRatio = 600 / 330;
-            if (Math.abs(ratio - expectedRatio) > 0.1) {
-                await ctx.reply(`Current aspect ratio is ${ratio.toFixed(2)}:1, but needs to be 1.82:1 (600x330). Please adjust your image. 📐`);
-                return;
-            }
-        }
-        // Vérification pour le token (question 12)
-        else if (isToken) {
-            if (dimensions.width < 24 || dimensions.height < 24) {
-                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Token image must be at least 24x24 pixels! Optimal size is 80x80 pixels. 🎯`);
-                return;
-            }
-            if (dimensions.width !== dimensions.height) {
-                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Please provide a square image for the token (same width and height). ⬛`);
-                return;
-            }
-        }
-
-        // Si toutes les vérifications sont passées, sauvegarder l'image
-        const r2Url = await saveImageToR2(
-            fileUrl,
-            ctx.session.answers.projectName || 'unknown',
-            isToken,
-            isThumbnail,
-            env
-        );
-
-        if (isToken) {
-            ctx.session.answers.tokenPicture = r2Url;
-            console.log('Token picture saved:', r2Url);
         } else if (isThumbnail) {
-            ctx.session.answers.thumbnailPicture = r2Url;
-            console.log('Thumbnail picture saved:', r2Url);
-        } else {
-            ctx.session.answers.projectPicture = r2Url;
-            console.log('Project picture saved:', r2Url);
+            // Pour les thumbnails, dimensions minimales de 400x220
+            if (dimensions.width < 400 || dimensions.height < 220) {
+                await ctx.reply(`Thumbnail size is ${dimensions.width}x${dimensions.height} pixels. Thumbnail must be at least 400x220 pixels! Optimal size is 600x330 pixels. 🖼️`);
+                return;
+            }
+        } else if (isToken) {
+            // Pour les tokens, taille minimale de 24x24
+            if (dimensions.width < 24 || dimensions.height < 24) {
+                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Token image must be at least 24x24 pixels! Optimal size is 80x80 pixels. 🎯`);
+                return;
+            }
+        }
+
+        let finalImageUrl = '';
+        let processedSuccessfully = false;
+
+        try {
+            // Essayer d'abord avec Cloudflare Images
+            const processedImageUrl = await processImage(fileUrl, isToken, isThumbnail, env);
+            finalImageUrl = processedImageUrl;
+            processedSuccessfully = true;
+            
+            // Stocker l'URL de l'image traitée
+            if (isToken) {
+                ctx.session.answers.tokenPicture = processedImageUrl;
+            } else if (isThumbnail) {
+                ctx.session.answers.thumbnailPicture = processedImageUrl;
+            } else {
+                ctx.session.answers.projectPicture = processedImageUrl;
+            }
+            
+            // Envoyer un message avec l'image modifiée
+            await ctx.replyWithPhoto(processedImageUrl, {
+                caption: `✅ Image successfully processed and resized!\n\n${isToken ? 'Token' : isThumbnail ? 'Thumbnail' : 'Logo'} image has been saved.`
+            });
+        } catch (cloudflareError) {
+            console.error('Cloudflare Images error:', cloudflareError);
+            
+            // En cas d'échec, utiliser le service de redimensionnement alternatif
+            console.log('Falling back to alternative resize service');
+            
+            try {
+                // Déterminer les dimensions cibles
+                let targetWidth, targetHeight;
+                
+                if (isToken) {
+                    targetWidth = 80;
+                    targetHeight = 80;
+                } else if (isThumbnail) {
+                    targetWidth = 600;
+                    targetHeight = 330;
+                } else {
+                    targetWidth = 200;
+                    targetHeight = 200;
+                }
+                
+                // Redimensionner l'image
+                const resizedImageBuffer = await resizeImageWithService(
+                    fileUrl,
+                    targetWidth,
+                    targetHeight,
+                    isThumbnail,
+                    !isThumbnail // isSquare = true pour logos et tokens, false pour thumbnails
+                );
+                
+                // Sauvegarder l'image redimensionnée dans R2
+                const cleanProjectName = (ctx.session.answers.projectName || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-');
+                
+                let fileName;
+                if (isToken) {
+                    fileName = `${cleanProjectName}_token_resized.jpg`;
+                } else if (isThumbnail) {
+                    fileName = `${cleanProjectName}_thumbnail_resized.jpg`;
+                } else {
+                    fileName = `${cleanProjectName}_logo_resized.jpg`;
+                }
+                
+                const filePath = `images/${cleanProjectName}/${fileName}`;
+                
+                await env.BUCKET.put(filePath, resizedImageBuffer, {
+                    httpMetadata: {
+                        contentType: 'image/jpeg'
+                    }
+                });
+                
+                finalImageUrl = `https://${env.BUCKET_URL}/${filePath}`;
+                console.log('Resized image saved to R2:', finalImageUrl);
+                processedSuccessfully = true;
+                
+                // Stocker l'URL de l'image
+                if (isToken) {
+                    ctx.session.answers.tokenPicture = finalImageUrl;
+                } else if (isThumbnail) {
+                    ctx.session.answers.thumbnailPicture = finalImageUrl;
+                } else {
+                    ctx.session.answers.projectPicture = finalImageUrl;
+                }
+                
+                // Envoyer un message avec l'image redimensionnée
+                await ctx.replyWithPhoto(finalImageUrl, {
+                    caption: `✅ Image successfully resized with alternative service!\n\n${isToken ? 'Token' : isThumbnail ? 'Thumbnail' : 'Logo'} image has been saved.`
+                });
+            } catch (resizeError) {
+                console.error('Alternative resize service error:', resizeError);
+                
+                // En dernier recours, utiliser l'image originale
+                const imageBuffer = await response.arrayBuffer();
+                
+                // Sauvegarder l'image dans R2
+                const cleanProjectName = (ctx.session.answers.projectName || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-');
+                
+                let fileName;
+                if (isToken) {
+                    fileName = `${cleanProjectName}_token_original.jpg`;
+                } else if (isThumbnail) {
+                    fileName = `${cleanProjectName}_thumbnail_original.jpg`;
+                } else {
+                    fileName = `${cleanProjectName}_logo_original.jpg`;
+                }
+                
+                const filePath = `images/${cleanProjectName}/${fileName}`;
+                
+                await env.BUCKET.put(filePath, imageBuffer, {
+                    httpMetadata: {
+                        contentType: 'image/jpeg'
+                    }
+                });
+                
+                finalImageUrl = `https://${env.BUCKET_URL}/${filePath}`;
+                console.log('Original image saved to R2:', finalImageUrl);
+                
+                // Stocker l'URL de l'image
+                if (isToken) {
+                    ctx.session.answers.tokenPicture = finalImageUrl;
+                } else if (isThumbnail) {
+                    ctx.session.answers.thumbnailPicture = finalImageUrl;
+                } else {
+                    ctx.session.answers.projectPicture = finalImageUrl;
+                }
+                
+                // Envoyer un message avec l'image originale
+                await ctx.replyWithPhoto(finalImageUrl, {
+                    caption: `⚠️ Image saved but not resized (using original dimensions).\n\n${isToken ? 'Token' : isThumbnail ? 'Thumbnail' : 'Logo'} image has been saved.`
+                });
+            }
+        }
+
+        // Informer l'utilisateur du résultat
+        if (!processedSuccessfully) {
+            await ctx.reply(`Note: The image could not be processed by our resizing services, so we've saved the original. It will work, but for optimal display, consider manually resizing your image to ${isToken ? '80x80' : isThumbnail ? '600x330' : '200x200'} pixels.`);
         }
 
         ctx.session.answers.currentQuestion++;
@@ -597,6 +749,111 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
         } else {
             await ctx.reply("Error processing image. Please make sure you're sending a valid JPG or PNG file and try again.");
         }
+    }
+}
+
+// Nouvelle fonction pour sauvegarder un buffer dans R2
+async function saveImageToR2WithBuffer(
+    imageBuffer: ArrayBuffer,
+    projectName: string,
+    isToken: boolean,
+    isThumbnail: boolean,
+    env: Env
+): Promise<string> {
+    try {
+        const cleanProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        
+        let fileName;
+        if (isToken) {
+            fileName = `${cleanProjectName}_token.png`;
+        } else if (isThumbnail) {
+            fileName = `${cleanProjectName}_thumbnail.png`;
+        } else {
+            fileName = `${cleanProjectName}_logo.png`;
+        }
+        const filePath = `images/${cleanProjectName}/${fileName}`;
+
+        await env.BUCKET.put(filePath, imageBuffer, {
+            httpMetadata: {
+                contentType: 'image/png'
+            }
+        });
+
+        return `https://${env.BUCKET_URL}/${filePath}`;
+    } catch (error) {
+        console.error('Error saving image to R2:', error);
+        throw error;
+    }
+}
+
+// Mettre à jour la fonction processImage pour avoir des contraintes spécifiques
+async function processImage(imageUrl: string, isToken: boolean, isThumbnail: boolean, env: Env): Promise<string> {
+    try {
+        // Télécharger l'image depuis l'URL
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+        
+        const imageBlob = await response.blob();
+        
+        // Créer un FormData pour l'upload
+        const formData = new FormData();
+        formData.append('file', imageBlob);
+        
+        // Déterminer les options de transformation
+        let transformations = '';
+        if (!isToken && !isThumbnail) {
+            // Logo: exactement 200x200 (carré)
+            transformations = 'fit=cover,width=200,height=200';
+        } else if (isThumbnail) {
+            // Thumbnail: exactement 600x330
+            transformations = 'fit=cover,width=600,height=330';
+        } else if (isToken) {
+            // Token: exactement 80x80 (carré)
+            transformations = 'fit=cover,width=80,height=80';
+        }
+        
+        // Ajouter les métadonnées
+        formData.append('metadata', JSON.stringify({
+            transformations: transformations
+        }));
+        
+        console.log('Uploading to Cloudflare Images with account ID:', env.CF_ACCOUNT_ID);
+        
+        // Uploader vers Cloudflare Images
+        const uploadResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/images/v1`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${env.CF_API_TOKEN}`
+            },
+            body: formData
+        });
+        
+        const responseText = await uploadResponse.text();
+        console.log('Cloudflare Images response:', responseText);
+        
+        if (!uploadResponse.ok) {
+            let errorData;
+            try {
+                errorData = JSON.parse(responseText);
+            } catch (e) {
+                errorData = { error: responseText };
+            }
+            throw new Error(`Failed to upload to Cloudflare Images: ${JSON.stringify(errorData)}`);
+        }
+        
+        const uploadResult = JSON.parse(responseText);
+        
+        if (!uploadResult.success) {
+            throw new Error(`Upload failed: ${JSON.stringify(uploadResult)}`);
+        }
+        
+        // Retourner l'URL de l'image transformée
+        return `${uploadResult.result.variants[0]}`;
+    } catch (error) {
+        console.error('Error processing image with Cloudflare Images:', error);
+        throw error;
     }
 }
 
