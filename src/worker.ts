@@ -394,11 +394,42 @@ async function showSummary(ctx: MyContext, env: Env) {
 
 Book a call : https://calendly.com/mark-borgpad/30min to validate all this together and move to the next step !
 `;
+
+        // Après avoir sauvegardé dans la base de données
+        const notificationGroupId = "-1002474316235"; // ID du supergroupe
+        const botAlerteThreadId = 2; // ID du topic "Bot Alerte"
+        const notificationMessage = `
+🎉 Nouveau projet soumis !
+
+🏷️ Projet : ${answers.projectName}
+👤 Par : @${answers.twitterUsername}
+💎 Description : ${answers.description}
+⛓️ Chain : ${answers.chain}
+🎯 Sector : ${answers.sector}
+📅 TGE : ${answers.tgeDate}
+💰 FDV : ${answers.fdv}
+🎫 Token : ${answers.ticker}
+
+🔗 Liens :
+🌐 Website : ${answers.websiteLink}
+💬 Community : ${answers.communityLink}
+🐦 X : ${answers.xLink}
+📚 Data Room : ${answers.dataRoom}
+`;
+
+        try {
+            await ctx.api.sendMessage(notificationGroupId, notificationMessage, {
+                message_thread_id: botAlerteThreadId // Spécifier le topic
+            });
+            console.log('Notification sent to Bot Alerte topic');
+        } catch (error) {
+            console.error('Error sending notification to group:', error);
+        }
+
         await ctx.reply(summary);
     } catch (error) {
-        console.error('Detailed error:', error);
-        console.error('Error stack:', (error as Error).stack);
-        await ctx.reply("Database error: " + (error as Error).message);
+        console.error('Error in showSummary:', error);
+        await ctx.reply("An error occurred while saving your project.");
     }
 }
 
@@ -547,6 +578,44 @@ export default {
         }
 
         const bot = new Bot<MyContext>(env.BOT_TOKEN);
+        await bot.init();
+
+        bot.command("getGroupId", async (ctx) => {
+            const chatId = ctx.chat?.id;
+            const chatType = ctx.chat?.type;
+            const chatTitle = ctx.chat?.title;
+            const messageThreadId = ctx.message?.message_thread_id;
+            const fromChat = ctx.message?.chat;
+            
+            console.log('Chat details:', {
+                id: chatId,
+                type: chatType,
+                title: chatTitle,
+                messageThreadId: messageThreadId,
+                fromChat: fromChat,
+                fullMessage: ctx.message
+            });
+            
+            try {
+                // Essayer d'envoyer dans le chat d'origine
+                await ctx.api.sendMessage(chatId, `
+Debug Chat Info:
+ID: ${chatId}
+Type: ${chatType}
+Title: ${chatTitle}
+Thread ID: ${messageThreadId}
+From Chat: ${JSON.stringify(fromChat, null, 2)}
+                `);
+            } catch (error) {
+                console.error('Error sending message:', error);
+                // Si échec, essayer d'envoyer dans le chat général
+                await ctx.reply(`Error sending to original chat: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        });
+
+        bot.command("ping", async (ctx) => {
+            await ctx.reply("Pong!");
+        });
 
         // Middleware de debug et initialisation de session
         bot.use(async (ctx, next) => {
