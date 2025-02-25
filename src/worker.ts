@@ -49,8 +49,8 @@ type MyContext = Context & SessionFlavor<SessionData>;
 const questions = [
     "1/14 - What is your project name? 🏷️",
     "2/14 - One sentence to describe your project 💎 (Max 80 characters)",
-    "3/14 - Send your project logo in jpg or png format 🖼️",
-    "4/14 - Send your thumbnail picture in jpg or png format 🖼️",
+    "3/14 - Send your project logo in jpg or png format 🖼️ (200x200px for optimal display)",
+    "4/14 - Send your thumbnail picture in jpg or png format 🖼️ (600x330px for optimal display)",
     "5/14 - Your website Link 🌐",
     "6/14 - Your telegram OR discord link (your main channel to communicate your community) 💬",
     "7/14 - Your X link 🐦",
@@ -60,7 +60,7 @@ const questions = [
     "11.A/14 - At which minimum FDV you want to launch 💰",
     "11.B/14 - At which maximum FDV you want to launch 💰",
     "12/14 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
-    "13/14 - Send your token picture in jpg or png format 🖼️",
+    "13/14 - Send your token picture in jpg or png format 🖼️ (80x80px for optimal display)",
     "14/14 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
 ];
 
