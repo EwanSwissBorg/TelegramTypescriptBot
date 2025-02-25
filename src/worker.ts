@@ -469,19 +469,106 @@ async function saveImageToR2(imageUrl: string, projectName: string, isToken: boo
     }
 }
 
+// Fonction pour obtenir les dimensions de l'image
+async function getImageDimensions(imageUrl: string): Promise<{ width: number; height: number }> {
+    try {
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = new Uint8Array(arrayBuffer);
+
+        // Vérifier si c'est un PNG
+        if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+            const width = buffer[16] * 256 * 256 * 256 + buffer[17] * 256 * 256 + buffer[18] * 256 + buffer[19];
+            const height = buffer[20] * 256 * 256 * 256 + buffer[21] * 256 * 256 + buffer[22] * 256 + buffer[23];
+            return { width, height };
+        }
+        // Vérifier si c'est un JPEG
+        else if (buffer[0] === 0xFF && buffer[1] === 0xD8) {
+            let pos = 2;
+            while (pos < buffer.length) {
+                if (buffer[pos] !== 0xFF) break;
+                if (buffer[pos + 1] === 0xC0 || buffer[pos + 1] === 0xC2) {
+                    const height = buffer[pos + 5] * 256 + buffer[pos + 6];
+                    const width = buffer[pos + 7] * 256 + buffer[pos + 8];
+                    return { width, height };
+                }
+                pos += 2 + buffer[pos + 2] * 256 + buffer[pos + 3];
+            }
+        }
+        throw new Error('Unsupported image format. Please use PNG or JPEG.');
+    } catch (error) {
+        console.error('Error getting image dimensions:', error);
+        throw new Error('Could not determine image dimensions');
+    }
+}
+
 // Fonction commune pour traiter les images
 async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: boolean, isThumbnail: boolean) {
     try {
+        console.log('Processing image:', fileUrl);
+        console.log('Image type:', isToken ? 'token' : isThumbnail ? 'thumbnail' : 'logo');
+
         // Vérifier la taille du fichier
         const response = await fetch(fileUrl);
-        const contentLength = parseInt(response.headers.get('content-length') || '0');
-        const maxSize = 1024 * 1024; // 1 MB en bytes
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
 
+        const contentLength = parseInt(response.headers.get('content-length') || '0');
+        console.log('Content length:', contentLength);
+
+        const maxSize = 1024 * 1024; // 1 MB
         if (contentLength > maxSize) {
             await ctx.reply("File too large! Please send an image smaller than 1MB 🚫");
             return;
         }
 
+        // Vérifier les dimensions
+        const dimensions = await getImageDimensions(fileUrl);
+        console.log('Image dimensions:', dimensions);
+
+        // Vérification pour le logo (question 2)
+        if (!isToken && !isThumbnail) {
+            const minSide = Math.min(dimensions.width, dimensions.height);
+            if (minSide < 120) {
+                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Logo must be at least 120x120 pixels! Optimal size is 200x200 pixels. 🎨`);
+                return;
+            }
+            if (dimensions.width !== dimensions.height) {
+                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Please provide a square image for the logo (same width and height). 🔲`);
+                return;
+            }
+        }
+        // Vérification pour la thumbnail (question 3)
+        else if (isThumbnail) {
+            if (dimensions.width < 400 || dimensions.height < 220) {
+                await ctx.reply(`Thumbnail size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Thumbnail must be at least 400x220 pixels! Please provide an image of 600x330 pixels for optimal results. 🖼️`);
+                return;
+            }
+            const ratio = dimensions.width / dimensions.height;
+            const expectedRatio = 600 / 330;
+            if (Math.abs(ratio - expectedRatio) > 0.1) {
+                await ctx.reply(`Current aspect ratio is ${ratio.toFixed(2)}:1, but needs to be 1.82:1 (600x330). Please adjust your image. 📐`);
+                return;
+            }
+        }
+        // Vérification pour le token (question 12)
+        else if (isToken) {
+            if (dimensions.width < 24 || dimensions.height < 24) {
+                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Token image must be at least 24x24 pixels! Optimal size is 80x80 pixels. 🎯`);
+                return;
+            }
+            if (dimensions.width !== dimensions.height) {
+                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Please provide a square image for the token (same width and height). ⬛`);
+                return;
+            }
+        }
+
+        // Si toutes les vérifications sont passées, sauvegarder l'image
         const r2Url = await saveImageToR2(
             fileUrl,
             ctx.session.answers.projectName || 'unknown',
@@ -504,8 +591,12 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
         ctx.session.answers.currentQuestion++;
         await askNextQuestion(ctx, env);
     } catch (error) {
-        console.error('Error handling image:', error);
-        await ctx.reply("Error processing image. Please try again.");
+        console.error('Detailed error in handleImage:', error);
+        if (error instanceof Error) {
+            await ctx.reply(`Error processing image: ${error.message}`);
+        } else {
+            await ctx.reply("Error processing image. Please make sure you're sending a valid JPG or PNG file and try again.");
+        }
     }
 }
 
