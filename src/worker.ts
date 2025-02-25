@@ -30,6 +30,8 @@ interface UserAnswers {
     chain?: string;
     sector?: string;
     tgeDate?: string;
+    fdvMin?: string;
+    fdvMax?: string;
     fdv?: string;
     ticker?: string;
     tokenPicture?: string;
@@ -55,7 +57,8 @@ const questions = [
     "8/14 - Select the chain you want to deploy on ⛓️",
     "9/14 - What is your sector? 🎯 (Depin / SocialFi / DeFi etc.)",
     "10/14 - When do you plan to do your TGE? 📅",
-    "11/14 - Select your FDV range 💰",
+    "11.A/14 - At which minimum FDV you want to launch 💰",
+    "11.B/14 - At which maximum FDV you want to launch 💰",
     "12/14 - Your token TICKER $XXXXX 🎫 (must start with '$' and be up to 5 characters long in uppercase).",
     "13/14 - Send your token picture in jpg or png format 🖼️",
     "14/14 - To provide the most information to your investors - and make them want to invest - you need a data room 📚\n\nExamples:\nAmbient: https://borgpad-data-room.notion.site/moemate?pvs=4\nSolana ID: https://www.solana.id/solid\n\nHere is a template: https://docs.google.com/document/d/1j3hxzO8_9wNfWfVxGNRDLFV8TJectQpX4bY6pSxCLGs/edit?tab=t.0\n\nShare the link of your data room 📝"
@@ -136,7 +139,7 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
                 .text("Abstract 🟩", "chain_Abstract")
                 .text("Base 🟦", "chain_Base")
                 .row()
-                .text("Sonic 🟡", "chain_Sonic"); // Added Sonic chain
+                .text("Sonic 🟡", "chain_Sonic");
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
@@ -149,13 +152,66 @@ async function askNextQuestion(ctx: MyContext, env: Env) {
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
-        else if (currentQuestion === 10) { // FDV
+        else if (currentQuestion === 10) { // FDV Min
             const keyboard = new InlineKeyboard()
-                .text("1M-5M", "fdv_$1M - $5M")
-                .text("5M-10M", "fdv_$5M - $10M")
+                .text("$1M", "fdvMin_1")
+                .text("$5M", "fdvMin_5")
+                .text("$10M", "fdvMin_10")
                 .row()
-                .text("10M-25M", "fdv_$10M - $25M")
-                .text("25M-50M", "fdv_$25M - $50M");
+                .text("$15M", "fdvMin_15")
+                .text("$20M", "fdvMin_20")
+                .text("$25M", "fdvMin_25")
+                .row()
+                .text("$30M", "fdvMin_30")
+                .text("$35M", "fdvMin_35")
+                .text("$40M", "fdvMin_40")
+                .row()
+                .text("$45M", "fdvMin_45")
+                .text("$50M", "fdvMin_50");
+            
+            await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
+        }
+        else if (currentQuestion === 11) { // FDV Max
+            // Récupérer la valeur minimale pour filtrer les options
+            const minValue = parseInt(ctx.session.answers.fdvMin || "1");
+            
+            // Créer un clavier avec seulement les valeurs supérieures au minimum
+            const keyboard = new InlineKeyboard();
+            
+            // Première ligne
+            if (5 > minValue) keyboard.text("$5M", "fdvMax_5");
+            if (10 > minValue) keyboard.text("$10M", "fdvMax_10");
+            if (15 > minValue) keyboard.text("$15M", "fdvMax_15");
+            
+            // Deuxième ligne (si au moins un bouton a été ajouté à la première ligne)
+            if (keyboard.inline_keyboard.length > 0 && keyboard.inline_keyboard[0].length > 0) {
+                keyboard.row();
+            }
+            
+            // Ajouter les boutons de la deuxième ligne
+            if (20 > minValue) keyboard.text("$20M", "fdvMax_20");
+            if (25 > minValue) keyboard.text("$25M", "fdvMax_25");
+            if (30 > minValue) keyboard.text("$30M", "fdvMax_30");
+            
+            // Troisième ligne (si au moins un bouton a été ajouté à la deuxième ligne)
+            if (keyboard.inline_keyboard.length > 0 && keyboard.inline_keyboard[keyboard.inline_keyboard.length - 1].length > 0) {
+                keyboard.row();
+            }
+            
+            // Ajouter les boutons de la troisième ligne
+            if (35 > minValue) keyboard.text("$35M", "fdvMax_35");
+            if (40 > minValue) keyboard.text("$40M", "fdvMax_40");
+            if (45 > minValue) keyboard.text("$45M", "fdvMax_45");
+            
+            // Quatrième ligne (si au moins un bouton a été ajouté à la troisième ligne)
+            if (keyboard.inline_keyboard.length > 0 && keyboard.inline_keyboard[keyboard.inline_keyboard.length - 1].length > 0) {
+                keyboard.row();
+            }
+            
+            // Ajouter le bouton de la quatrième ligne
+            if (50 > minValue) keyboard.text("$50M", "fdvMax_50");
+            if (75 > minValue) keyboard.text("$75M", "fdvMax_75");
+            if (100 > minValue) keyboard.text("$100M", "fdvMax_100");
             
             await ctx.reply(questions[currentQuestion], { reply_markup: keyboard });
         }
@@ -183,6 +239,12 @@ async function showSummary(ctx: MyContext, env: Env) {
         // Vérifier si les champs requis sont présents
         if (!answers.twitterUsername) {
             throw new Error('Twitter username is required');
+        }
+        
+        // S'assurer que le champ fdv est correctement défini
+        if (answers.fdvMin && answers.fdvMax && !answers.fdv) {
+            answers.fdv = `$${answers.fdvMin}M - $${answers.fdvMax}M`;
+            console.log('Setting FDV range:', answers.fdv);
         }
 
         // Sauvegarder dans D1 avec gestion des nulls
@@ -221,7 +283,7 @@ async function showSummary(ctx: MyContext, env: Env) {
                 cluster: "mainnet",
                 lpPositionToBeBurned: true,
                 raiseTargetInUsd: 100000,
-                fdv: parseInt(answers.fdv?.split('-')[0].replace(/[^0-9]/g, '') || '0') * 1000000, // Extraire le premier nombre du FDV et ajouter 6 zéros
+                fdv: parseInt(answers.fdvMin || '0') * 1000000, // Utiliser fdvMin pour le calcul
                 marketCap: 0,
                 totalTokensForLiquidityPool: 14285714,
                 totalTokensForRewardDistribution: 14285714,
@@ -257,7 +319,7 @@ async function showSummary(ctx: MyContext, env: Env) {
                 origin: "The Singularity",
                 sector: answers.sector,
                 tokenGenerationEventDate: answers.tgeDate,
-                targetFdv: answers.fdv,
+                targetFdv: answers.fdv || `$${answers.fdvMin || '0'}M - $${answers.fdvMax || '0'}M`, // Assurer que targetFdv est défini
                 chain: {
                     name: answers.chain,
                     iconUrl: "https://files.borgpad.com/images/zkagi/solana-small.jpg"
@@ -645,24 +707,18 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
                 }
                 
                 // Redimensionner l'image
-                const resizedImageBuffer = await resizeImageWithService(
-                    fileUrl,
-                    targetWidth,
-                    targetHeight,
-                    isThumbnail,
-                    !isThumbnail // isSquare = true pour logos et tokens, false pour thumbnails
-                );
+                const resizedImageBuffer = await resizeImageWithService(fileUrl, targetWidth, targetHeight, isThumbnail, !isThumbnail);
                 
                 // Sauvegarder l'image redimensionnée dans R2
                 const cleanProjectName = (ctx.session.answers.projectName || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-');
                 
                 let fileName;
                 if (isToken) {
-                    fileName = `${cleanProjectName}_token_resized.jpg`;
+                    fileName = `${cleanProjectName}_token_${targetWidth}x${targetHeight}.jpg`;
                 } else if (isThumbnail) {
-                    fileName = `${cleanProjectName}_thumbnail_resized.jpg`;
+                    fileName = `${cleanProjectName}_thumbnail_${targetWidth}x${targetHeight}.jpg`;
                 } else {
-                    fileName = `${cleanProjectName}_logo_resized.jpg`;
+                    fileName = `${cleanProjectName}_logo_${targetWidth}x${targetHeight}.jpg`;
                 }
                 
                 const filePath = `images/${cleanProjectName}/${fileName}`;
@@ -674,7 +730,6 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
                 });
                 
                 finalImageUrl = `https://${env.BUCKET_URL}/${filePath}`;
-                console.log('Resized image saved to R2:', finalImageUrl);
                 processedSuccessfully = true;
                 
                 // Stocker l'URL de l'image
@@ -994,6 +1049,8 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                                 chain: '',
                                 sector: '',
                                 tgeDate: '',
+                                fdvMin: '',
+                                fdvMax: '',
                                 fdv: '',
                                 ticker: '',
                                 tokenPicture: '',
@@ -1034,6 +1091,8 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                     chain: '',
                     sector: '',
                     tgeDate: '',
+                    fdvMin: '',
+                    fdvMax: '',
                     fdv: '',
                     ticker: '',
                     tokenPicture: '',
@@ -1072,6 +1131,8 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                                 chain: '',
                                 sector: '',
                                 tgeDate: '',
+                                fdvMin: '',
+                                fdvMax: '',
                                 fdv: '',
                                 ticker: '',
                                 tokenPicture: '',
@@ -1092,9 +1153,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
 
                     // Envoyer les images d'exemple en utilisant des URLs
                     await ctx.replyWithPhoto("https://pub-0cbbb3349b8a4e4384de7e35e44350eb.r2.dev/screenshots/screen1.png");
-                    await ctx.replyWithPhoto("https://pub-0cbbb3349b8a4e4384de7e35e44350eb.r2.dev/screenshots/screen2.png", {
-                        caption: "Here are the questions you need to answer to apply to the BorgPad Application Program."
-                    });
+                    await ctx.replyWithPhoto("https://pub-0cbbb3349b8a4e4384de7e35e44350eb.r2.dev/screenshots/screen2.png");
 
                     await ctx.reply(`GM @${username}! 👋\n\nI'll guide you through creating your page in the Draft Pick section on BorgPad. You'll find attached photos showing where all the information will be displayed. Shall we begin?`);
                     await askNextQuestion(ctx, env);
@@ -1165,7 +1224,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
             let shouldMoveToNextQuestion = true;
 
             // Vérifier si une image est attendue
-            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12) {
+            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 13) {
                 if (!ctx.message.photo && !ctx.message.document) {
                     await ctx.reply("Please send an image (jpg or png format) 🖼️");
                     shouldMoveToNextQuestion = false;
@@ -1179,7 +1238,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
 
             // Gérer les réponses selon la question
             try {
-                if (ctx.message.photo && (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12)) {
+                if (ctx.message.photo && (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 13)) {
                     const photo = ctx.message.photo[0]; // Utiliser la première version (non compressée)
                     const file = await ctx.api.getFile(photo.file_id);
                     
@@ -1192,7 +1251,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                     const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
                     
                     // Sauvegarder l'image dans R2
-                    await handleImage(ctx, env, fileUrl, currentQuestion === 12, currentQuestion === 3);
+                    await handleImage(ctx, env, fileUrl, currentQuestion === 13, currentQuestion === 3);
                     return; // Ajout de ce return pour éviter le double traitement
                     
                 } else if (ctx.message.text) {
@@ -1214,16 +1273,17 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                         case 7: answers.chain = ctx.message.text; break;
                         case 8: answers.sector = ctx.message.text; break;
                         case 9: answers.tgeDate = ctx.message.text; break;
-                        case 10: answers.fdv = ctx.message.text; break;
-                        case 11: 
-                            if (!ctx.message.text.startsWith('$') || ctx.message.text.length > 6) {
-                                await ctx.reply("Invalid ticker format. Must start with '$' and be up to 5 characters long in uppercase. 💔");
-                                shouldMoveToNextQuestion = false;
-                                return;
-                            }
-                            answers.ticker = ctx.message.text;
-                            break;
-                        case 13:
+                        case 10: answers.fdvMin = ctx.message.text; break;
+                        case 11: answers.fdvMax = ctx.message.text; break;
+                        case 12: 
+                        if (!ctx.message.text.startsWith('$') || ctx.message.text.length > 6) {
+                            await ctx.reply("Invalid ticker format. Must start with '$' and be up to 5 characters long in uppercase. 💔");
+                            shouldMoveToNextQuestion = false;
+                            return;
+                        }
+                        answers.ticker = ctx.message.text;
+                        break;
+                        case 14:
                             answers.dataRoom = ctx.message.text;
                             console.log('Saving dataRoom:', ctx.message.text);
                             
@@ -1253,7 +1313,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
         bot.on("message:photo", async (ctx) => {
             const currentQuestion = ctx.session.answers.currentQuestion;
             
-            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12) {
+            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 13) {
                 const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Meilleure qualité disponible
                 const file = await ctx.api.getFile(photo.file_id);
                 
@@ -1263,7 +1323,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                 }
 
                 const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
-                await handleImage(ctx, env, fileUrl, currentQuestion === 12, currentQuestion === 3);
+                await handleImage(ctx, env, fileUrl, currentQuestion === 13, currentQuestion === 3);
             }
         });
 
@@ -1271,7 +1331,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
         bot.on("message:document", async (ctx) => {
             const currentQuestion = ctx.session.answers.currentQuestion;
             
-            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 12) {
+            if (currentQuestion === 2 || currentQuestion === 3 || currentQuestion === 13) {
                 const doc = ctx.message.document;
                 
                 if (!doc.mime_type?.startsWith('image/')) {
@@ -1286,7 +1346,7 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
                 }
 
                 const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${file.file_path}`;
-                await handleImage(ctx, env, fileUrl, currentQuestion === 12, currentQuestion === 3);
+                await handleImage(ctx, env, fileUrl, currentQuestion === 13, currentQuestion === 3);
             }
         });
 
@@ -1307,30 +1367,55 @@ From Chat: ${JSON.stringify(fromChat, null, 2)}
         }
 
         // Ajouter le gestionnaire de boutons
-        bot.on("callback_query", async (ctx) => {
+        bot.on("callback_query:data", async (ctx) => {
             const data = ctx.callbackQuery.data;
             const answers = ctx.session.answers;
+            
+            console.log('Callback data received:', data);
 
             // Gérer les différents boutons
             if (data?.startsWith("chain_")) {
                 answers.chain = data.replace("chain_", "");
                 await ctx.reply(`Chain selected: ${answers.chain} ✅`);
+                
+                // Passer à la question suivante
+                answers.currentQuestion++;
+                await askNextQuestion(ctx, env);
             }
             else if (data?.startsWith("tge_")) {
                 answers.tgeDate = data.replace("tge_", "");
                 await ctx.reply(`TGE date selected: ${answers.tgeDate} ✅`);
+                
+                // Passer à la question suivante
+                answers.currentQuestion++;
+                await askNextQuestion(ctx, env);
             }
-            else if (data?.startsWith("fdv_")) {
-                answers.fdv = data.replace("fdv_", "");
-                await ctx.reply(`FDV selected: ${answers.fdv} ✅`);
+            else if (data?.startsWith("fdvMin_")) {
+                const minValue = data.replace("fdvMin_", "");
+                answers.fdvMin = minValue;
+                await ctx.reply(`FDV Min set to: $${minValue}M ✅`);
+                
+                // Passer à la question suivante
+                answers.currentQuestion++;
+                await askNextQuestion(ctx, env);
+            }
+            else if (data?.startsWith("fdvMax_")) {
+                const maxValue = data.replace("fdvMax_", "");
+                answers.fdvMax = maxValue;
+                
+                // Mettre à jour le champ fdv avec la fourchette complète
+                const min = answers.fdvMin || "1";
+                answers.fdv = `$${min}M - $${maxValue}M`;
+                
+                await ctx.reply(`FDV Max set to: $${maxValue}M ✅\nFDV Range: ${answers.fdv}`);
+                
+                // Passer à la question suivante
+                answers.currentQuestion++;
+                await askNextQuestion(ctx, env);
             }
 
             // Confirmer la sélection
-            // await ctx.answerCallbackQuery({ text: "Selection saved! ✅" });
-            
-            // Passer à la question suivante
-            answers.currentQuestion++;
-            await askNextQuestion(ctx, env);
+            await ctx.answerCallbackQuery();
         });
 
         try {
