@@ -456,17 +456,22 @@ async function showSummary(ctx: MyContext, env: Env) {
 
 🎉 Thank you for providing all the information!
 
-Book a call : https://calendly.com/mark-borgpad/30min to validate all this together and move to the next step !
+You will be reached asap by our team  ! 💚
 `;
 
         // Après avoir sauvegardé dans la base de données
         const notificationGroupId = "-1002474316235"; // ID du supergroupe
         const botAlerteThreadId = 2; // ID du topic "Bot Alerte"
+        
+        // Récupérer le nom d'utilisateur Telegram
+        const telegramUsername = ctx.from?.username || "Unknown";
+        
         const notificationMessage = `
 🎉 Nouveau projet soumis !
 
 🏷️ Projet : ${answers.projectName}
-👤 Par : @${answers.twitterUsername}
+👤 Par : @${telegramUsername}
+👤 X account : https://x.com/${answers.twitterUsername}
 💎 Description : ${answers.description}
 ⛓️ Chain : ${answers.chain}
 🎯 Sector : ${answers.sector}
@@ -610,19 +615,19 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
         if (!isToken && !isThumbnail) {
             // Pour les logos, taille minimale de 120x120
             if (dimensions.width < 120 || dimensions.height < 120) {
-                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Logo must be at least 120x120 pixels! Optimal size is 200x200 pixels. 🎨`);
+                await ctx.reply(`Logo size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Logo must be at least 120x120 pixels! Optimal size is 200x200 pixels. 🎨`);
                 return;
             }
         } else if (isThumbnail) {
             // Pour les thumbnails, dimensions minimales de 400x220
             if (dimensions.width < 400 || dimensions.height < 220) {
-                await ctx.reply(`Thumbnail size is ${dimensions.width}x${dimensions.height} pixels. Thumbnail must be at least 400x220 pixels! Optimal size is 600x330 pixels. 🖼️`);
+                await ctx.reply(`Thumbnail size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Thumbnail must be at least 400x220 pixels! Optimal size is 600x330 pixels. 🖼️`);
                 return;
             }
         } else if (isToken) {
             // Pour les tokens, taille minimale de 24x24
             if (dimensions.width < 24 || dimensions.height < 24) {
-                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Token image must be at least 24x24 pixels! Optimal size is 80x80 pixels. 🎯`);
+                await ctx.reply(`Token size is ${dimensions.width}x${dimensions.height} pixels. Try to not compress the image. Token image must be at least 24x24 pixels! Optimal size is 80x80 pixels. 🎯`);
                 return;
             }
         }
@@ -707,7 +712,7 @@ async function handleImage(ctx: MyContext, env: Env, fileUrl: string, isToken: b
                 
                 // Envoyer un message avec l'image redimensionnée
                 await ctx.replyWithPhoto(finalImageUrl, {
-                    caption: `✅ Image successfully resized with alternative service!\n\n${isToken ? 'Token' : isThumbnail ? 'Thumbnail' : 'Logo'} image has been saved.`
+                    caption: `✅ ${isToken ? 'Token' : isThumbnail ? 'Thumbnail' : 'Logo'} image has been saved.`
                 });
             } catch (resizeError) {
                 console.error('Alternative resize service error:', resizeError);
